@@ -10,6 +10,10 @@ gm_helper.db-wal
 gm_helper.db-shm
 gm_helper.db-journal
 
+# Docker Compose local overrides - your real paths/UID/port, not for the repo
+.env
+data/
+
 # OS cruft
 .DS_Store
 Thumbs.db

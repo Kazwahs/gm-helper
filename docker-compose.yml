@@ -1,26 +1,28 @@
 services:
   gm-helper:
-    build: .
+    image: ghcr.io/kazwahs/gm-helper:latest
     container_name: gm-helper
     restart: unless-stopped
 
-    # Run as a specific, non-root UID/GID instead of the image's default.
-    # Adjust the group half if your NAS user's primary group isn't also 568.
-    user: "568:568"
+    # Run as a specific, non-root UID/GID. Defaults to 1000:1000 if unset.
+    user: "${PUID:-1000}:${PGID:-1000}"
 
     ports:
-      - "30668:8000"
+      - "${GM_HELPER_PORT:-8000}:8000"
 
     environment:
       # Puts both the SQLite DB and the editable games.json (Manage Games
       # page) on the persistent volume below, so they survive the container
-      # being recreated (image updates, `docker compose up` after a pull).
+      # being recreated (image updates, `docker compose pull && up -d`).
       - GM_HELPER_DATA_DIR=/config
-      # UID 568 has no matching /etc/passwd entry in the image, so give it an
+      # The container's UID has no matching /etc/passwd entry, so give it an
       # explicit, writable HOME - EasyOCR caches its downloaded models there
       # (~/.EasyOCR) the first time OCR runs, otherwise it'd fail to write.
       - HOME=/config
 
     volumes:
-      - /mnt/NasWahs1/appdata/gmhelper:/config
-      - /mnt/NasWahs1/data/media/Books/TTRPG:/library:ro
+      # Persistent app data (database + games.json). Defaults to a folder
+      # next to this compose file if GM_HELPER_DATA_DIR isn't set.
+      - ${GM_HELPER_DATA_DIR:-./data}:/config
+      # Your TTRPG PDF library. Required - set this in your .env file.
+      - ${GM_HELPER_LIBRARY_DIR:?Set GM_HELPER_LIBRARY_DIR in your .env file to your PDF library folder}:/library:ro
