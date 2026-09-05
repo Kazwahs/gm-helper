@@ -1,5 +1,6 @@
 """Thin SQLite wrapper. No ORM - this app is small enough that raw SQL is
 clearer than fighting one, and it keeps the Docker image tiny."""
+import os
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -179,6 +180,9 @@ CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
 def get_connection():
     conn = getattr(_local, "conn", None)
     if conn is None:
+        db_dir = os.path.dirname(config.DB_PATH)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         conn = sqlite3.connect(config.DB_PATH, check_same_thread=False, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")

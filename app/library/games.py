@@ -9,7 +9,9 @@ move_series let the Manage Games page fix that up from the UI instead of
 requiring a hand-edit of this file.
 """
 import json
+import os
 import re
+import shutil
 import threading
 
 from .. import config
@@ -19,9 +21,36 @@ _cache = None
 _series_to_game = None
 
 
+def _ensure_config_file():
+    """Make sure GAMES_CONFIG_PATH exists before we try to read it.
+
+    In a Docker deployment this points at a mounted, otherwise-empty data
+    directory, so on first run there's nothing there yet - seed it from the
+    default config baked into the image so the app has starting series/game
+    mappings instead of crashing on a missing file.
+    """
+    path = config.GAMES_CONFIG_PATH
+    if os.path.exists(path):
+        return
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    default_path = config.DEFAULT_GAMES_CONFIG_PATH
+    if os.path.exists(default_path) and os.path.abspath(default_path) != os.path.abspath(path):
+        shutil.copyfile(default_path, path)
+    else:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(
+                {"games": [], "fallback_game_key": "unsorted", "fallback_game_name": "Unsorted / Other"},
+                f,
+                indent=2,
+            )
+
+
 def _load():
     global _cache, _series_to_game
     with _lock:
+        _ensure_config_file()
         with open(config.GAMES_CONFIG_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
         series_map = {}

@@ -1,0 +1,26 @@
+services:
+  gm-helper:
+    build: .
+    container_name: gm-helper
+    restart: unless-stopped
+
+    # Run as a specific, non-root UID/GID instead of the image's default.
+    # Adjust the group half if your NAS user's primary group isn't also 568.
+    user: "568:568"
+
+    ports:
+      - "30668:8000"
+
+    environment:
+      # Puts both the SQLite DB and the editable games.json (Manage Games
+      # page) on the persistent volume below, so they survive the container
+      # being recreated (image updates, `docker compose up` after a pull).
+      - GM_HELPER_DATA_DIR=/config
+      # UID 568 has no matching /etc/passwd entry in the image, so give it an
+      # explicit, writable HOME - EasyOCR caches its downloaded models there
+      # (~/.EasyOCR) the first time OCR runs, otherwise it'd fail to write.
+      - HOME=/config
+
+    volumes:
+      - /mnt/NasWahs1/appdata/gmhelper:/config
+      - /mnt/NasWahs1/data/media/Books/TTRPG:/library:ro
