@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Initiative{% endblock %}
+{% block content %}
+<h1>Initiative Tracker{% if game %} - {{ game.name }}{% endif %}</h1>
+
+<div class="card">
+  <h3>Add combatant</h3>
+  <form id="add-form" class="row">
+    <input type="text" id="c-name" placeholder="Name" required>
+    <input type="number" id="c-init" placeholder="Initiative" required style="width:110px;">
+    <input type="number" id="c-hp" placeholder="HP (optional)" style="width:130px;">
+    <label class="row"><input type="checkbox" id="c-pc"> PC</label>
+    <button type="submit">Add</button>
+  </form>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content: space-between;">
+    <h3 id="round-label">Round 1</h3>
+    <div class="row">
+      <button id="next-btn">Next Turn</button>
+      <button id="reset-btn" class="danger">Reset</button>
+    </div>
+  </div>
+  <div class="table-scroll">
+  <table>
+    <thead><tr><th>Init</th><th>Name</th><th>HP</th><th></th></tr></thead>
+    <tbody id="combatant-rows"></tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const gameKey = {{ (game_key or "_global") | tojson }};
+
+function renderState(state) {
+  document.getElementById('round-label').textContent = `Round ${state.round}`;
+  const tbody = document.getElementById('combatant-rows');
+  tbody.innerHTML = '';
+  if (!state.combatants.length) {
+    tbody.appendChild(el('tr', {}, el('td', {colspan: '4', class: 'muted'}, 'No combatants yet.')));
+    return;
+  }
+  state.combatants.forEach(c => {
+    const isCurrent = c.id === state.current_id;
+    const hpCell = c.hp !== null && c.hp !== undefined
+      ? el('span', {}, [
+          el('button', {class: 'secondary', style: 'padding:0.15rem 0.5rem;'}, '-'),
+          document.createTextNode(` ${c.hp}${c.max_hp ? '/' + c.max_hp : ''} `),
+          el('button', {class: 'secondary', style: 'padding:0.15rem 0.5rem;'}, '+'),
+        ])
+      : el('span', {class: 'muted'}, '-');
+
+    const row = el('tr', {class: isCurrent ? 'current-turn' : ''}, [
+      el('td', {}, String(c.initiative)),
+      el('td', {}, `${c.name}${c.is_pc ? ' (PC)' : ''}`),
+      el('td', {}, hpCell),
+      el('td', {}, el('button', {class: 'secondary'}, 'Remove')),
+    ]);
+
+    if (c.hp !== null && c.hp !== undefined) {
+      const buttons = hpCell.querySelectorAll('button');
+      buttons[0].addEventListener('click', async () => renderState(await postForm('/api/initiative/hp', {game: gameKey, combatant_id: c.id, delta: -1})));
+      buttons[1].addEventListener('click', async () => renderState(await postForm('/api/initiative/hp', {game: gameKey, combatant_id: c.id, delta: 1})));
+    }
+    row.querySelector('td:last-child button').addEventListener('click', async () => {
+      renderState(await postForm('/api/initiative/remove', {game: gameKey, combatant_id: c.id}));
+    });
+
+    tbody.appendChild(row);
+  });
+}
+
+async function refresh() {
+  const res = await fetch(`/api/initiative?game=${encodeURIComponent(gameKey)}`);
+  renderState(await res.json());
+}
+
+document.getElementById('add-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = document.getElementById('c-name').value;
+  const initiative = document.getElementById('c-init').value;
+  const hp = document.getElementById('c-hp').value;
+  const isPc = document.getElementById('c-pc').checked;
+  const data = {game: gameKey, name, initiative, is_pc: isPc};
+  if (hp) data.hp = hp;
+  renderState(await postForm('/api/initiative/add', data));
+  e.target.reset();
+});
+
+document.getElementById('next-btn').addEventListener('click', async () => {
+  renderState(await postForm('/api/initiative/next', {game: gameKey}));
+});
+document.getElementById('reset-btn').addEventListener('click', async () => {
+  if (confirm('Clear all combatants and reset to round 1?')) {
+    renderState(await postForm('/api/initiative/reset', {game: gameKey}));
+  }
+});
+
+refresh();
+</script>
+{% endblock %}

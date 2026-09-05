@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Manage Games{% endblock %}
+{% block content %}
+<h1>Manage Games</h1>
+<p class="muted">
+  The Series folder in your library gets auto-grouped into a "game" for the picker, but that
+  guess doesn't always match how you think about it - e.g. "Savage Rifts" or "The Rifter" might
+  feel like part of "Rifts" to you even though they're a different rules system or cover more
+  than one line. Rename a game, merge one game entirely into another, or move a single Series
+  to a different game below. Changes apply immediately - no rescan needed.
+</p>
+
+<div id="games-result" class="result-box" style="display:none;"></div>
+
+<h3>Games</h3>
+{% for g in games %}
+  <div class="card" data-game-key="{{ g.key }}">
+    <div class="row" style="justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+      <div class="row">
+        <input type="text" class="game-name-input" value="{{ g.name }}" style="min-width:220px;">
+        <button class="secondary rename-btn">Rename</button>
+      </div>
+      <div class="row">
+        <span class="muted">{{ counts.get(g.key, 0) }} book(s) &middot; system: {{ g.system }}</span>
+      </div>
+      <div class="row">
+        <select class="merge-target-select">
+          <option value="">Merge into…</option>
+          {% for other in games %}
+            {% if other.key != g.key %}<option value="{{ other.key }}">{{ other.name }}</option>{% endif %}
+          {% endfor %}
+          <option value="{{ fallback_key }}">{{ fallback_name }}</option>
+        </select>
+        <button class="secondary danger merge-btn">Merge</button>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:0.5rem;">Series: {{ g.series | join(', ') if g.series else '(none)' }}</p>
+  </div>
+{% endfor %}
+
+<div class="card">
+  <div class="row" style="justify-content: space-between;">
+    <strong>{{ fallback_name }}</strong>
+    <span class="muted">{{ counts.get(fallback_key, 0) }} book(s) - anything not mapped to a game above</span>
+  </div>
+</div>
+
+<h3 style="margin-top:2rem;">Series &rarr; Game mapping</h3>
+<p class="muted">Move an individual Series folder to a different game (or spin up a brand-new game for it) without merging the whole thing.</p>
+<div class="table-scroll">
+<table>
+  <thead><tr><th>Publisher</th><th>Series</th><th>Books</th><th>Move to</th><th></th></tr></thead>
+  <tbody>
+  {% for row in series_rows %}
+    <tr data-publisher="{{ row.publisher }}" data-series="{{ row.series }}">
+      <td>{{ row.publisher }}</td>
+      <td>{{ row.series }}</td>
+      <td>{{ row.n }}</td>
+      <td>
+        <select class="series-target-select">
+          <option value="">-- choose --</option>
+          {% for g in games %}<option value="{{ g.key }}" {% if g.key == row.game_key %}selected{% endif %}>{{ g.name }}</option>{% endfor %}
+          <option value="{{ fallback_key }}" {% if row.game_key == fallback_key %}selected{% endif %}>{{ fallback_name }}</option>
+          <option value="__new__">+ New game…</option>
+        </select>
+        <input type="text" class="series-new-name" placeholder="New game name" hidden>
+      </td>
+      <td><button class="secondary save-series-btn">Save</button></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="5" class="muted">No books scanned yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+function showResult(obj) {
+  const box = document.getElementById('games-result');
+  box.style.display = 'block';
+  box.textContent = JSON.stringify(obj, null, 2);
+}
+
+document.querySelectorAll('.rename-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('[data-game-key]');
+    const input = card.querySelector('.game-name-input');
+    try {
+      await postForm('/api/games/rename', {key: card.dataset.gameKey, name: input.value});
+      showResult({status: 'renamed to ' + input.value});
+    } catch (e) { showResult({error: e.message}); }
+  });
+});
+
+document.querySelectorAll('.merge-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('[data-game-key]');
+    const select = card.querySelector('.merge-target-select');
+    const nameInput = card.querySelector('.game-name-input');
+    if (!select.value) { alert('Choose a game to merge into.'); return; }
+    const targetLabel = select.options[select.selectedIndex].text;
+    if (!confirm(`Merge "${nameInput.value}" into "${targetLabel}"? All of its books and series move over, and "${nameInput.value}" goes away.`)) return;
+    try {
+      const res = await postForm('/api/games/merge', {source_key: card.dataset.gameKey, target_key: select.value});
+      showResult(res);
+      location.reload();
+    } catch (e) { showResult({error: e.message}); }
+  });
+});
+
+document.querySelectorAll('.series-target-select').forEach(select => {
+  select.addEventListener('change', () => {
+    const row = select.closest('tr');
+    row.querySelector('.series-new-name').hidden = select.value !== '__new__';
+  });
+});
+
+document.querySelectorAll('.save-series-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('tr');
+    const select = row.querySelector('.series-target-select');
+    const newName = row.querySelector('.series-new-name').value.trim();
+    const data = {
+      publisher: row.dataset.publisher,
+      series: row.dataset.series,
+      target_key: select.value,
+    };
+    if (select.value === '__new__') {
+      if (!newName) { alert('Name the new game first.'); return; }
+      data.new_game_name = newName;
+    } else if (!select.value) {
+      alert('Choose a game.');
+      return;
+    }
+    try {
+      const res = await postForm('/api/games/move-series', data);
+      showResult(res);
+      location.reload();
+    } catch (e) { showResult({error: e.message}); }
+  });
+});
+</script>
+{% endblock %}

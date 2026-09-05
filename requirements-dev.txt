@@ -1,0 +1,4 @@
+# Dev/test-only dependencies - not needed to run the app itself, so these
+# stay out of requirements.txt (and out of the Docker image).
+-r requirements.txt
+pytest>=8.0

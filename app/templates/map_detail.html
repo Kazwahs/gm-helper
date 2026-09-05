@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - {{ map.title }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between; align-items: flex-start;">
+  <div>
+    <h1 style="margin-bottom:0.2rem;">{{ map.title }}</h1>
+    <p class="muted" style="margin-top:0;">
+      {{ map.map_type|capitalize }} &middot; {{ map.genre|capitalize }} &middot; {{ game.name if game else map.game_key }}
+      &middot; <a href="/maps?game={{ map.game_key }}">All maps</a>
+    </p>
+  </div>
+  <div class="row">
+    <button type="button" id="edit-mode-btn" class="secondary">Edit map</button>
+    <button id="delete-map-btn" class="secondary danger">Delete map</button>
+  </div>
+</div>
+
+<div class="row map-editor-layout" style="align-items: flex-start; gap: 1rem;">
+  <div style="flex: 1; min-width: 260px;">
+    <div class="map-frame" id="map-frame">{{ map.svg | safe }}</div>
+    <div class="row map-editor-toolbar" id="editor-toolbar" hidden>
+      <button type="button" id="add-label-btn" class="secondary">Add label</button>
+      <button type="button" id="save-edits-btn">Save edits</button>
+      <button type="button" id="revert-btn" class="secondary danger">Revert to generated</button>
+    </div>
+  </div>
+  <div class="card map-editor-panel" id="editor-panel-wrap" hidden>
+    <label class="field-label">Editing</label>
+    <div id="editor-panel">
+      <p class="map-editor-empty">Click an element on the map to select it.</p>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div class="field-group" style="flex:1; min-width:220px;">
+      <label class="field-label">Title</label>
+      <input type="text" id="title-input" value="{{ map.title }}">
+    </div>
+    <div class="field-group" style="min-width:200px;">
+      <label class="field-label">Attach to campaign</label>
+      <select id="campaign-select">
+        <option value="">No campaign</option>
+        {% for c in campaigns %}
+          <option value="{{ c.id }}" {% if map.campaign_id == c.id %}selected{% endif %}>{{ c.title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <button type="button" id="download-svg-btn" class="secondary">Download SVG</button>
+    <button type="button" id="download-png-btn" class="secondary">Download PNG</button>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const mapId = {{ map.id }};
+const gameKey = {{ map.game_key | tojson }};
+const SVGNS = "http://www.w3.org/2000/svg";
+
+const MAP_COLOR_SWATCHES = [
+  "#e8dcc0", "#eef2f7", "#c9a66b", "#8fa9c4", "#a9c48f", "#c48fa0", "#8fc4bb",
+  "#c4b48f", "#b08fc4", "#c4908f", "#8f9fc4", "#a3c48f", "#3a6ea5", "#4f7942",
+  "#8a8a8a", "#d9b96a", "#5a6a4a", "#dfe8ea", "#3a2a1a", "#ffcf5c",
+];
+
+function filenameBase() {
+  return (document.getElementById('title-input').value || 'map').replace(/[^a-z0-9\-_]+/gi, '_').toLowerCase();
+}
+
+function mapSvgRoot() {
+  return document.querySelector('#map-frame svg');
+}
+
+// Serializes the live (possibly hand-edited) SVG DOM, stripping the
+// transient selection-highlight box so it never ends up saved or exported.
+function currentSvgString() {
+  const clone = mapSvgRoot().cloneNode(true);
+  clone.querySelectorAll('.map-el-selection-box').forEach((n) => n.remove());
+  clone.querySelectorAll('.map-el.selected').forEach((n) => n.classList.remove('selected'));
+  return new XMLSerializer().serializeToString(clone);
+}
+
+let titleTimer = null;
+document.getElementById('title-input').addEventListener('input', (e) => {
+  clearTimeout(titleTimer);
+  titleTimer = setTimeout(async () => {
+    try {
+      await postForm(`/api/maps/${mapId}/rename`, {title: e.target.value});
+    } catch (err) { alert('Could not rename: ' + err.message); }
+  }, 600);
+});
+
+document.getElementById('campaign-select').addEventListener('change', async (e) => {
+  try {
+    await postForm(`/api/maps/${mapId}/attach`, {campaign_id: e.target.value});
+  } catch (err) { alert('Could not attach to campaign: ' + err.message); }
+});
+
+document.getElementById('delete-map-btn').addEventListener('click', async () => {
+  if (!confirm('Delete this map?')) return;
+  try {
+    await postForm(`/api/maps/${mapId}/delete`, {});
+    location.href = `/maps?game=${gameKey}`;
+  } catch (e) { alert('Could not delete: ' + e.message); }
+});
+
+document.getElementById('download-svg-btn').addEventListener('click', () => {
+  const blob = new Blob([currentSvgString()], {type: 'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filenameBase() + '.svg';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('download-png-btn').addEventListener('click', () => {
+  const svg64 = btoa(unescape(encodeURIComponent(currentSvgString())));
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filenameBase() + '.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+  img.src = 'data:image/svg+xml;base64,' + svg64;
+});
+
+// ---------------------------------------------------------------- editing
+const mapFrame = document.getElementById('map-frame');
+const editorToolbar = document.getElementById('editor-toolbar');
+const editorPanelWrap = document.getElementById('editor-panel-wrap');
+const editModeBtn = document.getElementById('edit-mode-btn');
+const addLabelBtn = document.getElementById('add-label-btn');
+let editMode = false;
+let addLabelMode = false;
+let selectedEl = null;
+let dragState = null;
+
+function getTranslate(g) {
+  const t = g.getAttribute('transform') || '';
+  const m = t.match(/translate\(\s*(-?[\d.]+)[ ,]+(-?[\d.]+)\s*\)/);
+  return m ? [parseFloat(m[1]), parseFloat(m[2])] : [0, 0];
+}
+
+function toSvgPoint(svgRoot, evt) {
+  const pt = svgRoot.createSVGPoint();
+  pt.x = evt.clientX;
+  pt.y = evt.clientY;
+  return pt.matrixTransform(svgRoot.getScreenCTM().inverse());
+}
+
+function clearSelection() {
+  if (selectedEl) {
+    const box = selectedEl.querySelector(':scope > .map-el-selection-box');
+    if (box) box.remove();
+    selectedEl.classList.remove('selected');
+  }
+  selectedEl = null;
+  renderPanel();
+}
+
+function selectElement(g) {
+  if (selectedEl === g) return;
+  clearSelection();
+  selectedEl = g;
+  g.classList.add('selected');
+  const bbox = g.getBBox();
+  const pad = 4;
+  const box = document.createElementNS(SVGNS, 'rect');
+  box.setAttribute('class', 'map-el-selection-box');
+  box.setAttribute('x', (bbox.x - pad).toFixed(1));
+  box.setAttribute('y', (bbox.y - pad).toFixed(1));
+  box.setAttribute('width', (bbox.width + pad * 2).toFixed(1));
+  box.setAttribute('height', (bbox.height + pad * 2).toFixed(1));
+  g.appendChild(box);
+  renderPanel();
+}
+
+function makeLabelEl(cx, cy, labelText) {
+  const g = document.createElementNS(SVGNS, 'g');
+  g.setAttribute('class', 'map-el');
+  g.setAttribute('data-kind', 'label');
+  g.setAttribute('data-cx', cx.toFixed(1));
+  g.setAttribute('data-cy', cy.toFixed(1));
+  const t = document.createElementNS(SVGNS, 'text');
+  t.setAttribute('x', cx.toFixed(1));
+  t.setAttribute('y', cy.toFixed(1));
+  t.setAttribute('font-size', '10');
+  t.setAttribute('fill', '#ffe9b8');
+  t.setAttribute('text-anchor', 'middle');
+  t.setAttribute('font-weight', 'bold');
+  t.setAttribute('class', 'map-el-label');
+  t.textContent = labelText;
+  g.appendChild(t);
+  return g;
+}
+
+function renderPanel() {
+  const panel = document.getElementById('editor-panel');
+  panel.innerHTML = '';
+  if (!selectedEl) {
+    panel.appendChild(el('p', {class: 'map-editor-empty'}, 'Click an element on the map to select it.'));
+    return;
+  }
+  const kind = selectedEl.dataset.kind || 'element';
+  const kindLabel = kind.charAt(0).toUpperCase() + kind.slice(1);
+  panel.appendChild(el('div', {class: 'field-group'}, [
+    el('label', {class: 'field-label'}, 'Selected'),
+    el('div', {}, kindLabel),
+  ]));
+
+  const labelEl = selectedEl.querySelector('.map-el-label');
+  if (labelEl) {
+    const labelInput = el('input', {type: 'text', value: labelEl.textContent});
+    labelInput.addEventListener('input', () => { labelEl.textContent = labelInput.value; });
+    panel.appendChild(el('div', {class: 'field-group'}, [
+      el('label', {class: 'field-label'}, 'Label text'),
+      labelInput,
+    ]));
+  }
+
+  const fillEl = selectedEl.querySelector('.map-el-fill');
+  if (fillEl) {
+    const currentFill = (fillEl.getAttribute('fill') || '').toLowerCase();
+    const swatches = MAP_COLOR_SWATCHES.includes(currentFill) || !currentFill
+      ? MAP_COLOR_SWATCHES
+      : [currentFill, ...MAP_COLOR_SWATCHES];
+    const swatchRow = el('div', {class: 'color-swatches'});
+    swatches.forEach((color) => {
+      const b = el('button', {type: 'button', title: color});
+      b.style.background = color;
+      if (color === currentFill) b.classList.add('selected-swatch');
+      b.addEventListener('click', () => {
+        fillEl.setAttribute('fill', color);
+        selectedEl.setAttribute('data-fill', color);
+        renderPanel();
+      });
+      swatchRow.appendChild(b);
+    });
+    panel.appendChild(el('div', {class: 'field-group'}, [
+      el('label', {class: 'field-label'}, 'Color'),
+      swatchRow,
+    ]));
+  }
+
+  const delBtn = el('button', {type: 'button', class: 'secondary danger'}, 'Delete this element');
+  delBtn.addEventListener('click', () => {
+    if (!confirm('Delete this element from the map?')) return;
+    selectedEl.remove();
+    selectedEl = null;
+    renderPanel();
+  });
+  panel.appendChild(delBtn);
+}
+
+mapFrame.addEventListener('mousedown', (e) => {
+  if (!editMode || addLabelMode) return;
+  const g = e.target.closest('.map-el');
+  if (!g) return;
+  e.preventDefault();
+  selectElement(g);
+  const svgRoot = g.ownerSVGElement;
+  const start = toSvgPoint(svgRoot, e);
+  const [tx0, ty0] = getTranslate(g);
+  dragState = {g, startX: start.x, startY: start.y, tx0, ty0};
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!dragState) return;
+  const svgRoot = dragState.g.ownerSVGElement;
+  const cur = toSvgPoint(svgRoot, e);
+  const nx = dragState.tx0 + (cur.x - dragState.startX);
+  const ny = dragState.ty0 + (cur.y - dragState.startY);
+  dragState.g.setAttribute('transform', `translate(${nx.toFixed(1)},${ny.toFixed(1)})`);
+});
+
+document.addEventListener('mouseup', () => { dragState = null; });
+
+mapFrame.addEventListener('click', (e) => {
+  if (!editMode || !addLabelMode) return;
+  if (e.target.closest('.map-el')) return;
+  const svgRoot = mapSvgRoot();
+  if (!svgRoot) return;
+  const pt = toSvgPoint(svgRoot, e);
+  const text = window.prompt('Label text:');
+  if (text && text.trim()) {
+    svgRoot.appendChild(makeLabelEl(pt.x, pt.y, text.trim()));
+  }
+});
+
+editModeBtn.addEventListener('click', () => {
+  editMode = !editMode;
+  mapFrame.classList.toggle('editing', editMode);
+  editorToolbar.hidden = !editMode;
+  editorPanelWrap.hidden = !editMode;
+  editModeBtn.textContent = editMode ? 'Exit edit mode' : 'Edit map';
+  editModeBtn.classList.toggle('active-toggle', editMode);
+  if (!editMode) {
+    clearSelection();
+    addLabelMode = false;
+    addLabelBtn.classList.remove('active-toggle');
+  }
+});
+
+addLabelBtn.addEventListener('click', () => {
+  addLabelMode = !addLabelMode;
+  addLabelBtn.classList.toggle('active-toggle', addLabelMode);
+});
+
+document.getElementById('save-edits-btn').addEventListener('click', async () => {
+  try {
+    await postForm(`/api/maps/${mapId}/svg`, {svg: currentSvgString()});
+    alert('Edits saved.');
+  } catch (err) { alert('Could not save edits: ' + err.message); }
+});
+
+document.getElementById('revert-btn').addEventListener('click', async () => {
+  if (!confirm('Discard all hand edits and restore the map as it was originally generated? This cannot be undone.')) return;
+  try {
+    await postForm(`/api/maps/${mapId}/revert`, {});
+    location.reload();
+  } catch (err) { alert('Could not revert: ' + err.message); }
+});
+</script>
+{% endblock %}

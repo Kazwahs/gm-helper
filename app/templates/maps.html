@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Maps{% endblock %}
+{% block content %}
+<h1>Maps{% if game %} - {{ game.name }}{% endif %}</h1>
+<p class="muted">
+  Generate a map, then save the ones worth keeping. Dungeons, building interiors, city
+  districts, and cave/tunnel systems render as clean stylized floor plans; wilderness and
+  world maps render as hex-grid regional terrain with rivers, settlements, and a legend.
+</p>
+
+<div class="card">
+  <h3>Generate</h3>
+  <form id="generate-form" class="row">
+    <select name="map_type" id="map-type-select">
+      {% for t in map_types %}<option value="{{ t.key }}">{{ t.name }}</option>{% endfor %}
+    </select>
+    <select name="genre" id="genre-select">
+      {% for g in genres %}<option value="{{ g.key }}">{{ g.name }}</option>{% endfor %}
+    </select>
+    <select name="size" id="size-select">
+      {% for s in sizes %}<option value="{{ s }}" {% if s == 'medium' %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
+    </select>
+    <button type="submit">Generate</button>
+    <button type="button" id="reroll-btn" class="secondary" disabled>Reroll</button>
+  </form>
+
+  <div id="preview-wrap" hidden>
+    <div class="map-frame" id="preview-frame"></div>
+    <div class="row" style="margin-top:0.75rem;">
+      <button type="button" id="download-svg-btn" class="secondary">Download SVG</button>
+      <button type="button" id="download-png-btn" class="secondary">Download PNG</button>
+    </div>
+
+    <div class="subcard">
+      <div class="row">
+        <input type="text" id="save-title" placeholder="Title this map" style="min-width:220px;">
+        {% if game_key %}
+          <input type="hidden" id="save-game-key" value="{{ game_key }}">
+        {% else %}
+          <select id="save-game-key">
+            <option value="">Which game?</option>
+            {% for g in all_games or [] %}<option value="{{ g.key }}">{{ g.name }}</option>{% endfor %}
+          </select>
+        {% endif %}
+        {% if campaigns %}
+          <select id="save-campaign-select">
+            <option value="">No campaign</option>
+            {% for c in campaigns %}
+              <option value="{{ c.id }}" {% if preset_campaign_id and c.id == preset_campaign_id %}selected{% endif %}>{{ c.title }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
+        <button type="button" id="save-map-btn">Save map</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>Saved maps{% if game %} for {{ game.name }}{% endif %}</h3>
+{% if not maps %}
+  <p class="muted">No maps saved yet - generate one above.</p>
+{% else %}
+  <div class="grid">
+    {% for m in maps %}
+      <a class="card" href="/maps/{{ m.id }}" style="display:block; text-decoration:none; color:inherit;">
+        <strong>{{ m.title }}</strong>
+        <p class="muted" style="margin:0.35rem 0 0;">{{ m.map_type|capitalize }} &middot; {{ m.genre|capitalize }}</p>
+      </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+let lastResult = null;
+
+async function doGenerate() {
+  const form = document.getElementById('generate-form');
+  const data = {
+    map_type: form.map_type.value,
+    genre: form.genre.value,
+    size: form.size.value,
+  };
+  try {
+    lastResult = await postForm('/api/maps/generate', data);
+    document.getElementById('preview-frame').innerHTML = lastResult.svg;
+    document.getElementById('preview-wrap').hidden = false;
+    document.getElementById('reroll-btn').disabled = false;
+    const titleInput = document.getElementById('save-title');
+    if (!titleInput.value) titleInput.value = lastResult.title_suggestion || '';
+  } catch (e) {
+    alert('Could not generate a map: ' + e.message);
+  }
+}
+
+document.getElementById('generate-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  doGenerate();
+});
+document.getElementById('reroll-btn').addEventListener('click', doGenerate);
+
+function svgFilenameBase() {
+  const title = document.getElementById('save-title').value || (lastResult && lastResult.title_suggestion) || 'map';
+  return title.replace(/[^a-z0-9\-_]+/gi, '_').toLowerCase();
+}
+
+document.getElementById('download-svg-btn').addEventListener('click', () => {
+  if (!lastResult) return;
+  const blob = new Blob([lastResult.svg], {type: 'image/svg+xml'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = svgFilenameBase() + '.svg';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('download-png-btn').addEventListener('click', () => {
+  if (!lastResult) return;
+  const svg64 = btoa(unescape(encodeURIComponent(lastResult.svg)));
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = svgFilenameBase() + '.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  };
+  img.src = 'data:image/svg+xml;base64,' + svg64;
+});
+
+document.getElementById('save-map-btn').addEventListener('click', async () => {
+  if (!lastResult) return;
+  const gameKeyEl = document.getElementById('save-game-key');
+  const gameKey = gameKeyEl.value;
+  if (!gameKey) { alert('Choose a game to save this map to.'); return; }
+  const campaignSelect = document.getElementById('save-campaign-select');
+  const data = {
+    game_key: gameKey,
+    map_type: lastResult.map_type,
+    genre: lastResult.genre,
+    title: document.getElementById('save-title').value || lastResult.title_suggestion,
+    svg: lastResult.svg,
+    seed: lastResult.seed,
+    params_json: JSON.stringify(lastResult.params || {}),
+  };
+  if (campaignSelect && campaignSelect.value) data.campaign_id = campaignSelect.value;
+  try {
+    const res = await postForm('/api/maps', data);
+    location.href = `/maps/${res.id}`;
+  } catch (e) {
+    alert('Could not save map: ' + e.message);
+  }
+});
+</script>
+{% endblock %}

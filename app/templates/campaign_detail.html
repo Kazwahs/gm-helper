@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - {{ campaign.title }}{% endblock %}
+{% block content %}
+<div class="row" style="justify-content: space-between; align-items: flex-start;">
+  <div>
+    <h1 style="margin-bottom:0.2rem;">{{ campaign.title }}</h1>
+    <p class="muted" style="margin-top:0;">
+      {{ game.name if game else campaign.game_key }}
+      &middot; <a href="/campaigns?game={{ campaign.game_key }}">All campaigns</a>
+    </p>
+  </div>
+  <button id="delete-campaign-btn" class="secondary danger">Delete campaign</button>
+</div>
+
+<!-- ---------------------------------------------------------- Overview -->
+<div class="card" id="overview-card" data-id="{{ campaign.id }}">
+  <h3>Overview</h3>
+  <div class="field-group">
+    <label class="field-label">Title</label>
+    <input type="text" data-field="title" value="{{ campaign.title }}" class="input-wide">
+  </div>
+  <div class="row" style="align-items: flex-start; gap: 1.5rem;">
+    <div class="field-group" style="flex: 2; min-width:280px;">
+      <label class="field-label">Pitch / premise</label>
+      <textarea data-field="pitch" rows="3" placeholder="What's this campaign about, in a few sentences?">{{ campaign.pitch or '' }}</textarea>
+    </div>
+    <div class="field-group" style="flex: 1; min-width:200px;">
+      <label class="field-label">Status</label>
+      <select data-field="status">
+        {% for s in ['planning', 'active', 'paused', 'completed'] %}
+          <option value="{{ s }}" {% if campaign.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="field-group">
+    <label class="field-label">Tone, themes, inspirations</label>
+    <textarea data-field="tone" rows="2" placeholder="e.g. gritty survival horror, inspired by...">{{ campaign.tone or '' }}</textarea>
+  </div>
+</div>
+
+<!-- --------------------------------------------------------- Materials -->
+<div class="card">
+  <h3>Materials</h3>
+  <p class="muted">
+    Reference books and pages for this campaign. This is its own bookmark collection, so
+    anything saved here also shows up on the <a href="/bookmarks">Bookmarks</a> page, and
+    you can add to it from a Library search too.
+  </p>
+  <div id="materials-list" class="stack">
+    {% for m in materials %}
+      <div class="row subcard" style="justify-content: space-between;" data-id="{{ m.id }}">
+        <span>
+          <strong>{{ m.book_title }}</strong>
+          <span class="muted">({{ m.publisher }}{% if m.series %} / {{ m.series }}{% endif %})</span>
+          {% if m.page_number %}
+            &middot; <a href="/books/{{ m.book_id }}/file#page={{ m.page_number }}" target="_blank" rel="noopener">p.{{ m.page_number }}</a>
+          {% else %}
+            &middot; <a href="/books/{{ m.book_id }}/file" target="_blank" rel="noopener">open</a>
+          {% endif %}
+          {% if m.note %}<br><span class="muted">{{ m.note }}</span>{% endif %}
+        </span>
+        <button class="secondary delete-material-btn">Remove</button>
+      </div>
+    {% else %}
+      <p class="muted">No materials added yet.</p>
+    {% endfor %}
+  </div>
+
+  <form id="add-material-form" class="row" style="margin-top:1rem;">
+    <select name="book_id" required style="min-width:260px;">
+      <option value="">Choose a book…</option>
+      {% for b in books %}<option value="{{ b.id }}">{{ b.title }}{% if b.series %} ({{ b.series }}){% endif %}</option>{% endfor %}
+    </select>
+    <input type="number" name="page_number" placeholder="Page (optional)" style="width:150px;">
+    <input type="text" name="note" placeholder="Note (optional)" style="min-width:200px;">
+    <button type="submit">Add material</button>
+  </form>
+</div>
+
+<!-- --------------------------------------------------------------- Maps -->
+<div class="card">
+  <h3>Maps</h3>
+  <p class="muted">Maps generated and attached to this campaign. Generate one on the <a href="/maps?game={{ campaign.game_key }}&campaign_id={{ campaign.id }}">Maps</a> page.</p>
+  {% if not attached_maps %}
+    <p class="muted">No maps attached yet.</p>
+  {% else %}
+    <div class="grid">
+      {% for m in attached_maps %}
+        <a class="card" href="/maps/{{ m.id }}" style="display:block; text-decoration:none; color:inherit; margin-bottom:0;">
+          <strong>{{ m.title }}</strong>
+          <p class="muted" style="margin:0.25rem 0 0;">{{ m.map_type|capitalize }} &middot; {{ m.genre|capitalize }}</p>
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- ----------------------------------------------------------- Threads -->
+<div class="card">
+  <h3>Plot threads</h3>
+  <p class="muted">Open story threads with real stakes - track them until they resolve (or get dropped).</p>
+  <div id="threads-list" class="stack">
+    {% for t in threads %}
+      <div class="subcard" data-id="{{ t.id }}">
+        <div class="row" style="justify-content: space-between;">
+          <input type="text" data-field="title" value="{{ t.title }}" style="flex:1; min-width:200px; font-weight:bold;">
+          <select data-field="status">
+            {% for s in ['seed', 'active', 'resolved', 'dropped'] %}
+              <option value="{{ s }}" {% if t.status == s %}selected{% endif %}>{{ s|capitalize }}</option>
+            {% endfor %}
+          </select>
+          <button class="secondary delete-thread-btn">Remove</button>
+        </div>
+        <div class="field-group" style="margin-top:0.5rem;">
+          <label class="field-label">Description</label>
+          <textarea data-field="description" rows="2">{{ t.description or '' }}</textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Stakes if unresolved</label>
+          <textarea data-field="stakes" rows="2">{{ t.stakes or '' }}</textarea>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">No threads yet.</p>
+    {% endfor %}
+  </div>
+
+  <form id="add-thread-form" class="stack" style="margin-top:1rem;">
+    <div class="row">
+      <input type="text" name="title" placeholder="Thread title" required style="min-width:220px;">
+      <select name="status">
+        {% for s in ['seed', 'active', 'resolved', 'dropped'] %}<option value="{{ s }}">{{ s|capitalize }}</option>{% endfor %}
+      </select>
+      <button type="submit">Add thread</button>
+    </div>
+    <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
+    <textarea name="stakes" rows="2" placeholder="Stakes if unresolved (optional)"></textarea>
+  </form>
+</div>
+
+<!-- ------------------------------------------------------------- Cast -->
+<div class="card">
+  <h3>Cast</h3>
+  <p class="muted">NPCs with wants and secrets - a name alone is just set dressing.</p>
+  <div id="npcs-list" class="stack">
+    {% for n in npcs %}
+      <div class="subcard" data-id="{{ n.id }}">
+        <div class="row" style="justify-content: space-between;">
+          <input type="text" data-field="name" value="{{ n.name }}" style="flex:1; min-width:160px; font-weight:bold;">
+          <input type="text" data-field="role" value="{{ n.role or '' }}" placeholder="Role" style="min-width:160px;">
+          <select data-field="disposition">
+            {% for d in ['ally', 'neutral', 'rival', 'villain', 'unknown'] %}
+              <option value="{{ d }}" {% if n.disposition == d %}selected{% endif %}>{{ d|capitalize }}</option>
+            {% endfor %}
+          </select>
+          <button class="secondary delete-npc-btn">Remove</button>
+        </div>
+        <div class="row" style="margin-top:0.5rem; align-items: flex-start;">
+          <div class="field-group" style="flex:1; min-width:200px;">
+            <label class="field-label">Wants</label>
+            <textarea data-field="motivation" rows="2">{{ n.motivation or '' }}</textarea>
+          </div>
+          <div class="field-group" style="flex:1; min-width:200px;">
+            <label class="field-label">Secret</label>
+            <textarea data-field="secret" rows="2">{{ n.secret or '' }}</textarea>
+          </div>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="2">{{ n.notes or '' }}</textarea>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">No NPCs yet - add one below, or generate one from <a href="/tools/npc?game={{ campaign.game_key }}">NPCs</a> and save it here.</p>
+    {% endfor %}
+  </div>
+
+  <form id="add-npc-form" class="stack" style="margin-top:1rem;">
+    <div class="row">
+      <input type="text" name="name" placeholder="Name" required style="min-width:160px;">
+      <input type="text" name="role" placeholder="Role (optional)" style="min-width:160px;">
+      <select name="disposition">
+        {% for d in ['ally', 'neutral', 'rival', 'villain', 'unknown'] %}<option value="{{ d }}">{{ d|capitalize }}</option>{% endfor %}
+      </select>
+      <button type="submit">Add NPC</button>
+    </div>
+    <div class="row" style="align-items: flex-start;">
+      <textarea name="motivation" rows="2" placeholder="What do they want? (optional)" style="flex:1; min-width:200px;"></textarea>
+      <textarea name="secret" rows="2" placeholder="What are they hiding? (optional)" style="flex:1; min-width:200px;"></textarea>
+    </div>
+    <textarea name="notes" rows="2" placeholder="Notes (optional)"></textarea>
+  </form>
+</div>
+
+<!-- --------------------------------------------------------- Factions -->
+<div class="card">
+  <h3>Factions</h3>
+  <p class="muted">The powers with their own goals, still pursuing them while the party's elsewhere.</p>
+  <div id="factions-list" class="stack">
+    {% for f in factions %}
+      <div class="subcard" data-id="{{ f.id }}">
+        <div class="row" style="justify-content: space-between;">
+          <input type="text" data-field="name" value="{{ f.name }}" style="flex:1; min-width:200px; font-weight:bold;">
+          <button class="secondary delete-faction-btn">Remove</button>
+        </div>
+        <div class="field-group" style="margin-top:0.5rem;">
+          <label class="field-label">Goal</label>
+          <textarea data-field="goal" rows="2">{{ f.goal or '' }}</textarea>
+        </div>
+        <div class="field-group">
+          <label class="field-label">Notes</label>
+          <textarea data-field="notes" rows="2">{{ f.notes or '' }}</textarea>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">No factions yet.</p>
+    {% endfor %}
+  </div>
+
+  <form id="add-faction-form" class="stack" style="margin-top:1rem;">
+    <div class="row">
+      <input type="text" name="name" placeholder="Faction name" required style="min-width:220px;">
+      <button type="submit">Add faction</button>
+    </div>
+    <textarea name="goal" rows="2" placeholder="What are they after? (optional)"></textarea>
+    <textarea name="notes" rows="2" placeholder="Notes (optional)"></textarea>
+  </form>
+</div>
+
+<!-- -------------------------------------------------------- Locations -->
+<div class="card">
+  <h3>Locations</h3>
+  <p class="muted">The map - nested under each other, so you can always answer "where is this" by looking one level up.</p>
+  <div id="locations-list" class="stack">
+    {% for l in locations %}
+      <div class="subcard" data-id="{{ l.id }}" style="margin-left: {{ l.depth * 1.5 }}rem;">
+        <div class="row" style="justify-content: space-between;">
+          <input type="text" data-field="name" value="{{ l.name }}" style="flex:1; min-width:200px; font-weight:bold;">
+          <select data-field="parent_id">
+            <option value="">(top level)</option>
+            {% for opt in locations %}
+              {% if opt.id != l.id %}
+                <option value="{{ opt.id }}" {% if l.parent_id == opt.id %}selected{% endif %}>{{ opt.name }}</option>
+              {% endif %}
+            {% endfor %}
+          </select>
+          <button class="secondary delete-location-btn">Remove</button>
+        </div>
+        <div class="field-group" style="margin-top:0.5rem;">
+          <label class="field-label">Description</label>
+          <textarea data-field="description" rows="2">{{ l.description or '' }}</textarea>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">No locations yet.</p>
+    {% endfor %}
+  </div>
+
+  <form id="add-location-form" class="stack" style="margin-top:1rem;">
+    <div class="row">
+      <input type="text" name="name" placeholder="Location name" required style="min-width:220px;">
+      <select name="parent_id">
+        <option value="">(top level)</option>
+        {% for opt in locations %}<option value="{{ opt.id }}">{{ opt.name }}</option>{% endfor %}
+      </select>
+      <button type="submit">Add location</button>
+    </div>
+    <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
+  </form>
+</div>
+
+<!-- --------------------------------------------------------- Sessions -->
+<div class="card">
+  <h3>Sessions</h3>
+  <p class="muted">
+    Prep the next session (a strong start, scenes that might happen, secrets/clues to seed,
+    anything else you've prepped), then fill in what actually happened afterward.
+  </p>
+  <div id="sessions-list" class="stack">
+    {% for s in sessions %}
+      <div class="subcard" data-id="{{ s.id }}">
+        <div class="row" style="justify-content: space-between;">
+          <strong>Session {{ s.session_number }}</strong>
+          <input type="text" data-field="title" value="{{ s.title or '' }}" placeholder="Title (optional)" style="flex:1; min-width:160px;">
+          <input type="text" data-field="date" value="{{ s.date or '' }}" placeholder="Date (optional)" style="width:150px;">
+          <select data-field="status">
+            <option value="planned" {% if s.status == 'planned' %}selected{% endif %}>Planned</option>
+            <option value="played" {% if s.status == 'played' %}selected{% endif %}>Played</option>
+          </select>
+          <button class="secondary toggle-session-btn">Details</button>
+          <button class="secondary delete-session-btn">Remove</button>
+        </div>
+        <div class="session-details" hidden style="margin-top:0.75rem;">
+          <div class="field-group">
+            <label class="field-label">Strong start (the opening hook)</label>
+            <textarea data-field="strong_start" rows="2">{{ s.strong_start or '' }}</textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Potential scenes</label>
+            <textarea data-field="scenes" rows="2">{{ s.scenes or '' }}</textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Secrets &amp; clues</label>
+            <textarea data-field="secrets_clues" rows="2">{{ s.secrets_clues or '' }}</textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">Other prep (monsters, rewards, etc.)</label>
+            <textarea data-field="prep_notes" rows="2">{{ s.prep_notes or '' }}</textarea>
+          </div>
+          <div class="field-group">
+            <label class="field-label">What actually happened</label>
+            <textarea data-field="summary" rows="3">{{ s.summary or '' }}</textarea>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <p class="muted">No sessions yet.</p>
+    {% endfor %}
+  </div>
+  <button id="add-session-btn" class="secondary" style="margin-top:1rem;">+ New session</button>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const campaignId = {{ campaign.id }};
+
+function wireAutoSave(container, urlFor) {
+  container.querySelectorAll('[data-field]').forEach(field => {
+    const save = async () => {
+      const id = field.closest('[data-id]').dataset.id;
+      try {
+        await postForm(urlFor(id), {field: field.dataset.field, value: field.value});
+      } catch (e) {
+        alert('Could not save: ' + e.message);
+      }
+    };
+    if (field.tagName === 'SELECT') {
+      field.addEventListener('change', save);
+    } else {
+      let timer = null;
+      field.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(save, 600);
+      });
+    }
+  });
+}
+
+function wireDelete(container, selector, urlFor, confirmMsg) {
+  container.querySelectorAll(selector).forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (confirmMsg && !confirm(confirmMsg)) return;
+      const row = btn.closest('[data-id]');
+      try {
+        await postForm(urlFor(row.dataset.id), {});
+        row.remove();
+      } catch (e) {
+        alert('Could not remove: ' + e.message);
+      }
+    });
+  });
+}
+
+// ---- overview ----
+wireAutoSave(document.getElementById('overview-card'), id => `/api/campaigns/${id}/update`);
+
+document.getElementById('delete-campaign-btn').addEventListener('click', async () => {
+  if (!confirm('Delete this campaign, including its threads, cast, factions, locations, sessions, and materials?')) return;
+  try {
+    await postForm(`/api/campaigns/${campaignId}/delete`, {});
+    location.href = `/campaigns?game={{ campaign.game_key }}`;
+  } catch (e) { alert('Could not delete: ' + e.message); }
+});
+
+// ---- materials ----
+wireDelete(document.getElementById('materials-list'), '.delete-material-btn', id => `/api/campaigns/materials/${id}/delete`);
+
+document.getElementById('add-material-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  if (!form.book_id.value) { alert('Choose a book.'); return; }
+  try {
+    await postForm(`/api/campaigns/${campaignId}/materials`, {
+      book_id: form.book_id.value,
+      page_number: form.page_number.value,
+      note: form.note.value,
+    });
+    location.reload();
+  } catch (err) { alert('Could not add material: ' + err.message); }
+});
+
+// ---- threads ----
+wireAutoSave(document.getElementById('threads-list'), id => `/api/campaigns/threads/${id}/update`);
+wireDelete(document.getElementById('threads-list'), '.delete-thread-btn', id => `/api/campaigns/threads/${id}/delete`);
+
+document.getElementById('add-thread-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  try {
+    await postForm(`/api/campaigns/${campaignId}/threads`, {
+      title: form.title.value, description: form.description.value,
+      stakes: form.stakes.value, status: form.status.value,
+    });
+    location.reload();
+  } catch (err) { alert('Could not add thread: ' + err.message); }
+});
+
+// ---- cast ----
+wireAutoSave(document.getElementById('npcs-list'), id => `/api/campaigns/npcs/${id}/update`);
+wireDelete(document.getElementById('npcs-list'), '.delete-npc-btn', id => `/api/campaigns/npcs/${id}/delete`);
+
+document.getElementById('add-npc-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  try {
+    await postForm(`/api/campaigns/${campaignId}/npcs`, {
+      name: form.name.value, role: form.role.value, disposition: form.disposition.value,
+      motivation: form.motivation.value, secret: form.secret.value, notes: form.notes.value,
+    });
+    location.reload();
+  } catch (err) { alert('Could not add NPC: ' + err.message); }
+});
+
+// ---- factions ----
+wireAutoSave(document.getElementById('factions-list'), id => `/api/campaigns/factions/${id}/update`);
+wireDelete(document.getElementById('factions-list'), '.delete-faction-btn', id => `/api/campaigns/factions/${id}/delete`);
+
+document.getElementById('add-faction-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  try {
+    await postForm(`/api/campaigns/${campaignId}/factions`, {
+      name: form.name.value, goal: form.goal.value, notes: form.notes.value,
+    });
+    location.reload();
+  } catch (err) { alert('Could not add faction: ' + err.message); }
+});
+
+// ---- locations ----
+wireAutoSave(document.getElementById('locations-list'), id => `/api/campaigns/locations/${id}/update`);
+wireDelete(document.getElementById('locations-list'), '.delete-location-btn', id => `/api/campaigns/locations/${id}/delete`);
+
+document.getElementById('add-location-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  try {
+    await postForm(`/api/campaigns/${campaignId}/locations`, {
+      name: form.name.value, description: form.description.value, parent_id: form.parent_id.value,
+    });
+    location.reload();
+  } catch (err) { alert('Could not add location: ' + err.message); }
+});
+
+// ---- sessions ----
+wireAutoSave(document.getElementById('sessions-list'), id => `/api/campaigns/sessions/${id}/update`);
+wireDelete(document.getElementById('sessions-list'), '.delete-session-btn', id => `/api/campaigns/sessions/${id}/delete`);
+
+document.querySelectorAll('.toggle-session-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const details = btn.closest('[data-id]').querySelector('.session-details');
+    details.hidden = !details.hidden;
+  });
+});
+
+document.getElementById('add-session-btn').addEventListener('click', async () => {
+  try {
+    await postForm(`/api/campaigns/${campaignId}/sessions`, {});
+    location.reload();
+  } catch (e) { alert('Could not add session: ' + e.message); }
+});
+</script>
+{% endblock %}

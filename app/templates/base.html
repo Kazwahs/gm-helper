@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}GM Helper{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">GM Helper</a>
+    <nav>
+      <a href="/">Games</a>
+      {% set gk = game_key or (game.key if game else None) %}
+      <a href="/maps{% if gk %}?game={{ gk }}{% endif %}">Maps</a>
+      <a href="/tools/dice{% if gk %}?game={{ gk }}{% endif %}">Dice</a>
+      {% if gk %}
+        <a href="/library?game={{ gk }}">Library</a>
+        <a href="/campaigns?game={{ gk }}">Campaigns</a>
+        <a href="/tools/npc?game={{ gk }}">NPCs</a>
+        <a href="/tools/initiative?game={{ gk }}">Initiative</a>
+        <a href="/tools/encounters?game={{ gk }}">Encounters</a>
+      {% endif %}
+      <a href="/bookmarks">Bookmarks</a>
+      <a href="/games/manage">Manage Games</a>
+      <a href="/settings">Settings</a>
+    </nav>
+  </header>
+  <main>
+    {% if not library_root %}
+      <div class="card" style="border-color: var(--accent);">
+        <strong>No library folder set yet.</strong>
+        <span class="muted">Head to <a href="/settings">Settings</a> to point GM Helper at your book collection.</span>
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <script src="/static/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

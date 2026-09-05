@@ -1,0 +1,213 @@
+{
+  "_comment": "Maps a display 'game' to the Series-level folders (the folder directly under a Publisher folder) that belong to it. Edit this file to match your own library layout - nothing else in the app needs to change. 'system' is just a free-text hint used to flavor the NPC generator (e.g. 'd20', 'palladium', 'savage_worlds', 'generic').",
+  "games": [
+    {
+      "key": "rifts",
+      "name": "Rifts",
+      "system": "palladium",
+      "series": [
+        "Rifts",
+        "Rifts Adventures",
+        "Rifts Chaos Earth",
+        "Rifts Coalition Wars",
+        "Rifts Conversion Books",
+        "Rifts Dimension Books",
+        "Rifts Misc",
+        "Rifts Sourcebooks",
+        "Rifts World Books",
+        "Savage Rifts",
+        "Reference Compendiums",
+        "The Rifter"
+      ]
+    },
+    {
+      "key": "palladium_fantasy",
+      "name": "Palladium Fantasy",
+      "system": "palladium",
+      "series": [
+        "Palladium Fantasy Role-Playing Game"
+      ]
+    },
+    {
+      "key": "heroes_unlimited",
+      "name": "Heroes Unlimited",
+      "system": "palladium",
+      "series": [
+        "Heroes Unlimited",
+        "Ninjas & Superspies"
+      ]
+    },
+    {
+      "key": "nightbane",
+      "name": "Nightbane",
+      "system": "palladium",
+      "series": [
+        "Nightbane"
+      ]
+    },
+    {
+      "key": "beyond_supernatural",
+      "name": "Beyond the Supernatural",
+      "system": "palladium",
+      "series": [
+        "Beyond the Supernatural"
+      ]
+    },
+    {
+      "key": "dead_reign",
+      "name": "Dead Reign",
+      "system": "palladium",
+      "series": [
+        "Dead Reign"
+      ]
+    },
+    {
+      "key": "recon",
+      "name": "Recon",
+      "system": "palladium",
+      "series": [
+        "Recon"
+      ]
+    },
+    {
+      "key": "robotech",
+      "name": "Robotech",
+      "system": "palladium",
+      "series": [
+        "Robotech"
+      ]
+    },
+    {
+      "key": "splicers",
+      "name": "Splicers",
+      "system": "palladium",
+      "series": [
+        "Splicers"
+      ]
+    },
+    {
+      "key": "systems_failure",
+      "name": "Systems Failure",
+      "system": "palladium",
+      "series": [
+        "Systems Failure"
+      ]
+    },
+    {
+      "key": "mechanoids",
+      "name": "The Mechanoid Invasion",
+      "system": "palladium",
+      "series": [
+        "The Mechanoids"
+      ]
+    },
+    {
+      "key": "tmnt",
+      "name": "Teenage Mutant Ninja Turtles",
+      "system": "palladium",
+      "series": [
+        "TMNT After the Bomb",
+        "TMNT and Other Strangeness"
+      ]
+    },
+    {
+      "key": "valley_pharaohs",
+      "name": "Valley of the Pharaohs",
+      "system": "palladium",
+      "series": [
+        "Valley of the Pharaohs"
+      ]
+    },
+    {
+      "key": "cosmic_enforcers",
+      "name": "Cosmic Enforcers",
+      "system": "palladium",
+      "series": [
+        "Cosmic Enforcers"
+      ]
+    },
+    {
+      "key": "manhunter",
+      "name": "Manhunter",
+      "system": "palladium",
+      "series": [
+        "Manhunter"
+      ]
+    },
+    {
+      "key": "arcana_unearthed",
+      "name": "Arcana Unearthed",
+      "system": "d20",
+      "series": [
+        "Arcana Unearthed"
+      ]
+    },
+    {
+      "key": "sns_d20",
+      "name": "Sword & Sorcery d20 Line",
+      "system": "d20",
+      "series": [
+        "Eldritch Might",
+        "Sword & Sorcery Studios d20 Line"
+      ]
+    },
+    {
+      "key": "dnd30",
+      "name": "D&D 3.0",
+      "system": "d20",
+      "series": [
+        "D&D 3.0 Core & Supplements",
+        "D&D 3.0 Guidebook Series"
+      ]
+    },
+    {
+      "key": "dnd35",
+      "name": "D&D 3.5",
+      "system": "d20",
+      "series": [
+        "D&D 3.5 Adventures",
+        "D&D 3.5 Complete Series",
+        "D&D 3.5 Core & Supplements",
+        "D&D 3.5 Forgotten Realms"
+      ]
+    },
+    {
+      "key": "dnd4e",
+      "name": "D&D 4th Edition",
+      "system": "d20",
+      "series": [
+        "D&D 4th Edition Adventures",
+        "D&D 4th Edition Core",
+        "D&D 4th Edition Dark Sun",
+        "D&D 4th Edition Eberron",
+        "D&D 4th Edition Forgotten Realms",
+        "D&D 4th Edition Heroes Series",
+        "D&D 4th Edition Monsters & Planes",
+        "D&D 4th Edition Player Options",
+        "D&D 4th Edition Powers",
+        "D&D 4th Edition Races"
+      ]
+    },
+    {
+      "key": "dnd5e",
+      "name": "D&D 5th Edition",
+      "system": "d20",
+      "series": [
+        "D&D 5th Edition Adventures",
+        "D&D 5th Edition Core",
+        "D&D 5th Edition Unearthed Arcana"
+      ]
+    },
+    {
+      "key": "dnd_magazines",
+      "name": "D&D Magazines (Dragon/Dungeon)",
+      "system": "d20",
+      "series": [
+        "Dragon Magazine",
+        "Dungeon Magazine"
+      ]
+    }
+  ],
+  "fallback_game_key": "unsorted",
+  "fallback_game_name": "Unsorted / Other"
+}

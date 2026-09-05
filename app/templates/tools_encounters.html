@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Encounters{% endblock %}
+{% block content %}
+<h1>Random Encounters &amp; Loot{% if game %} - {{ game.name }}{% endif %}</h1>
+
+<div class="card">
+  <h3>Encounter</h3>
+  <div class="row">
+    <select id="env-select">
+      {% for e in environments %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
+    </select>
+    <button id="enc-btn">Generate</button>
+  </div>
+  <div id="enc-out" class="result-box" style="display:none;"></div>
+</div>
+
+<div class="card">
+  <h3>Loot</h3>
+  <div class="row">
+    <select id="tier-select">
+      <option value="low">Low tier</option>
+      <option value="mid" selected>Mid tier</option>
+      <option value="high">High tier</option>
+    </select>
+    <label class="row"><input type="checkbox" id="item-check" checked> Include item</label>
+    <button id="loot-btn">Generate</button>
+  </div>
+  <div id="loot-out" class="result-box" style="display:none;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('enc-btn').addEventListener('click', async () => {
+  const environment = document.getElementById('env-select').value;
+  const res = await postForm('/api/encounters/generate', {environment});
+  const box = document.getElementById('enc-out');
+  box.style.display = 'block';
+  box.textContent = `[${res.environment}] ${res.encounter}`;
+});
+
+document.getElementById('loot-btn').addEventListener('click', async () => {
+  const tier = document.getElementById('tier-select').value;
+  const includeItem = document.getElementById('item-check').checked;
+  const res = await postForm('/api/loot/generate', {tier, include_item: includeItem});
+  const box = document.getElementById('loot-out');
+  box.style.display = 'block';
+  let text = `Coin: ${res.coin} (${res.coin_formula})`;
+  if (res.item) text += `\nItem: ${res.item.rarity} - ${res.item.example} (rolled ${res.item.roll})`;
+  box.textContent = text;
+});
+</script>
+{% endblock %}

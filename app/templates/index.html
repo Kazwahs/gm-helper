@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Choose a Game{% endblock %}
+{% block content %}
+<h1>Choose a game</h1>
+{% if needs_setup %}
+  <p class="muted">Once your library folder is set and scanned, your games will show book counts here.</p>
+{% endif %}
+
+<div class="toolbar">
+  <a href="/maps">Maps - generate dungeons, cities, caves &amp; wilderness</a>
+  <a href="/tools/dice">Dice Roller</a>
+</div>
+
+<div class="grid">
+  {% for g in games %}
+    <a class="game-tile" href="/library?game={{ g.key }}">
+      <div>{{ g.name }}</div>
+      <div class="count">{{ g.count }} book{{ 's' if g.count != 1 else '' }}</div>
+      <span class="system-tag">{{ g.system }}</span>
+    </a>
+  {% endfor %}
+</div>
+{% endblock %}

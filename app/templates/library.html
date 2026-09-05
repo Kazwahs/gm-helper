@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Library{% endblock %}
+{% block content %}
+<h1>{{ game.name if game else "All Books" }}</h1>
+<p class="muted">{{ stats.searchable }} of {{ stats.total }} book(s) are full-text searchable.</p>
+
+<form method="get" action="/library" class="row" style="margin-bottom:1.5rem;">
+  {% if game_key %}<input type="hidden" name="game" value="{{ game_key }}">{% endif %}
+  <input type="text" name="q" value="{{ query }}" placeholder="Search inside this library's books..." class="input-wide">
+  <button type="submit">Search</button>
+</form>
+
+{% if query %}
+  <h3>Search results</h3>
+  {% if not results %}
+    <p class="muted">No matches for "{{ query }}".</p>
+  {% endif %}
+  {% for r in results %}
+    <div class="card" data-book-id="{{ r.book_id }}" data-page="{{ r.page_number }}">
+      <strong>{{ r.title }}</strong> <span class="muted">- {{ r.publisher }} / {{ r.series }} - p.{{ r.page_number }}</span>
+      &middot; <a href="/books/{{ r.book_id }}/file#page={{ r.page_number }}" target="_blank" rel="noopener">Open at page {{ r.page_number }}</a>
+      &middot; <button class="secondary bookmark-toggle-btn">+ Bookmark</button>
+      <div class="result-box">{{ r.snippet | safe }}</div>
+
+      <div class="bookmark-form" hidden>
+        <div class="row">
+          <select class="bookmark-collection-select">
+            <option value="">Choose a collection…</option>
+            {% for c in collections %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+            <option value="__new__">+ New collection…</option>
+          </select>
+          <input type="text" class="bookmark-new-name" placeholder="New collection name" hidden>
+          <input type="text" class="bookmark-note" placeholder="Note (optional)" style="min-width:220px;">
+          <button class="save-bookmark-btn">Save bookmark</button>
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+  <hr style="border-color: var(--border); margin: 1.5rem 0;">
+{% endif %}
+
+<h3>All books{% if game %} in {{ game.name }}{% endif %}</h3>
+<p class="muted">
+  A Series folder is grouped into a game as a whole on the
+  <a href="/games/manage">Manage Games</a> page, but some folders (a reference line, a
+  magazine) genuinely mix systems. Check individual books below and move just those to a
+  different game.
+</p>
+
+<div class="card" id="bulk-move-bar">
+  <div class="row">
+    <span id="bulk-move-count" class="muted">0 selected</span>
+    <select id="bulk-move-target">
+      <option value="">Move selected to…</option>
+      {% for g in all_games %}<option value="{{ g.key }}">{{ g.name }}</option>{% endfor %}
+    </select>
+    <button id="bulk-move-btn" class="secondary" disabled>Move</button>
+  </div>
+</div>
+
+<div class="table-scroll">
+<table>
+  <thead>
+    <tr>
+      <th><input type="checkbox" id="select-all-books"></th>
+      <th>Title</th><th>Publisher</th><th>Series</th><th>Game</th><th>Searchable</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for b in books %}
+    <tr data-book-id="{{ b.id }}">
+      <td><input type="checkbox" class="book-select"></td>
+      <td>{{ b.title }}</td>
+      <td>{{ b.publisher }}</td>
+      <td>{{ b.series }}</td>
+      <td>
+        {{ game_names.get(b.game_key, b.game_key) }}
+        {% if b.game_key_overridden %}
+          <span class="badge good" title="Manually moved - won't be reset by a rescan">manual</span>
+          <button class="secondary reset-game-btn" style="padding:0.1rem 0.4rem; font-size:0.75rem;">Reset to auto</button>
+        {% endif %}
+      </td>
+      <td>
+        {% if b.has_text and b.text_source == 'ocr' %}<span class="badge good" title="Searchable via OCR - may be less accurate than embedded text">yes (OCR)</span>
+        {% elif b.has_text %}<span class="badge good">yes</span>
+        {% elif b.ocr_attempted %}<span class="badge bad">no (OCR found no text)</span>
+        {% elif b.indexed %}<span class="badge bad">no (scanned image)</span>
+        {% else %}<span class="muted">not indexed yet</span>{% endif %}
+      </td>
+      <td><a href="/books/{{ b.id }}/file" target="_blank" rel="noopener">Open</a></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">No books found yet. Set your library folder and scan it from <a href="/settings">Settings</a>.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.bookmark-toggle-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const form = btn.closest('.card').querySelector('.bookmark-form');
+    form.hidden = !form.hidden;
+  });
+});
+
+document.querySelectorAll('.bookmark-collection-select').forEach(select => {
+  select.addEventListener('change', () => {
+    const newNameInput = select.closest('.row').querySelector('.bookmark-new-name');
+    newNameInput.hidden = select.value !== '__new__';
+  });
+});
+
+document.querySelectorAll('.save-bookmark-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('.card');
+    const row = btn.closest('.row');
+    const select = row.querySelector('.bookmark-collection-select');
+    const newName = row.querySelector('.bookmark-new-name').value.trim();
+    const note = row.querySelector('.bookmark-note').value;
+
+    const data = {
+      book_id: card.dataset.bookId,
+      page_number: card.dataset.page,
+      note: note,
+    };
+    if (select.value === '__new__') {
+      if (!newName) { alert('Name the new collection first.'); return; }
+      data.new_collection_name = newName;
+    } else if (select.value) {
+      data.collection_id = select.value;
+    } else {
+      alert('Choose a collection, or create a new one.');
+      return;
+    }
+
+    btn.disabled = true;
+    try {
+      await postForm('/api/bookmarks/add', data);
+      btn.textContent = 'Saved ✓';
+    } catch (e) {
+      btn.disabled = false;
+      alert('Could not save bookmark: ' + e.message);
+    }
+  });
+});
+
+// ---- per-book game reassignment ----
+const bookCheckboxes = () => Array.from(document.querySelectorAll('.book-select'));
+const bulkCount = document.getElementById('bulk-move-count');
+const bulkBtn = document.getElementById('bulk-move-btn');
+const bulkSelect = document.getElementById('bulk-move-target');
+
+function refreshBulkBar() {
+  const checked = bookCheckboxes().filter(cb => cb.checked);
+  bulkCount.textContent = `${checked.length} selected`;
+  bulkBtn.disabled = checked.length === 0;
+}
+
+document.getElementById('select-all-books').addEventListener('change', (e) => {
+  bookCheckboxes().forEach(cb => cb.checked = e.target.checked);
+  refreshBulkBar();
+});
+
+bookCheckboxes().forEach(cb => cb.addEventListener('change', refreshBulkBar));
+
+bulkBtn.addEventListener('click', async () => {
+  const ids = bookCheckboxes().filter(cb => cb.checked).map(cb => cb.closest('tr').dataset.bookId);
+  if (!bulkSelect.value) { alert('Choose a game to move the selected books to.'); return; }
+  if (!confirm(`Move ${ids.length} book(s) to the selected game?`)) return;
+  try {
+    await postForm('/api/books/move', {book_ids: ids.join(','), target_key: bulkSelect.value});
+    location.reload();
+  } catch (e) {
+    alert('Could not move books: ' + e.message);
+  }
+});
+
+document.querySelectorAll('.reset-game-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('tr');
+    try {
+      await postForm(`/api/books/${row.dataset.bookId}/reset-game`, {});
+      location.reload();
+    } catch (e) {
+      alert('Could not reset: ' + e.message);
+    }
+  });
+});
+</script>
+{% endblock %}

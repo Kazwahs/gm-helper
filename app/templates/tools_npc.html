@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - NPC Generator{% endblock %}
+{% block content %}
+<h1>Random NPC{% if game %} - {{ game.name }}{% endif %}</h1>
+<div class="card">
+  <button id="gen-btn">Generate NPC</button>
+  <div id="npc-out" style="display:none; margin-top:1rem;">
+    <h2 id="npc-name"></h2>
+    <p><strong id="npc-role"></strong> &middot; <span id="npc-alignment" class="muted"></span></p>
+    <p><em id="npc-quirk"></em></p>
+    <p class="muted">Motivation: <span id="npc-motivation"></span></p>
+    <div class="stat-grid" id="npc-stats"></div>
+  </div>
+  {% if campaigns %}
+    <div class="row" id="save-to-campaign-row" style="margin-top:1rem;" hidden>
+      <select id="save-campaign-select">
+        {% for c in campaigns %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}
+      </select>
+      <button id="save-to-campaign-btn" class="secondary">Add to campaign's cast</button>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const gameKey = {{ (game.key if game else None) | tojson }};
+let lastNpc = null;
+
+document.getElementById('gen-btn').addEventListener('click', async () => {
+  const npc = await postForm('/api/npc/generate', gameKey ? {game: gameKey} : {});
+  lastNpc = npc;
+  document.getElementById('npc-out').style.display = 'block';
+  document.getElementById('npc-name').textContent = npc.name;
+  document.getElementById('npc-role').textContent = npc.role;
+  document.getElementById('npc-alignment').textContent = npc.alignment;
+  document.getElementById('npc-quirk').textContent = npc.quirk;
+  document.getElementById('npc-motivation').textContent = npc.motivation;
+  const statsDiv = document.getElementById('npc-stats');
+  statsDiv.innerHTML = '';
+  Object.entries(npc.stats).forEach(([label, value]) => {
+    statsDiv.appendChild(el('div', {}, [
+      el('div', {class: 'label'}, label),
+      el('div', {class: 'value'}, String(value)),
+    ]));
+  });
+  const saveRow = document.getElementById('save-to-campaign-row');
+  if (saveRow) saveRow.hidden = false;
+});
+
+const saveToCampaignBtn = document.getElementById('save-to-campaign-btn');
+if (saveToCampaignBtn) {
+  saveToCampaignBtn.addEventListener('click', async () => {
+    if (!lastNpc) return;
+    const campaignId = document.getElementById('save-campaign-select').value;
+    try {
+      await postForm(`/api/campaigns/${campaignId}/npcs`, {
+        name: lastNpc.name,
+        role: lastNpc.role,
+        motivation: lastNpc.motivation,
+        notes: `Alignment: ${lastNpc.alignment}. Quirk: ${lastNpc.quirk}.`,
+      });
+      saveToCampaignBtn.textContent = 'Added ✓';
+      setTimeout(() => { saveToCampaignBtn.textContent = "Add to campaign's cast"; }, 1500);
+    } catch (e) {
+      alert('Could not add to campaign: ' + e.message);
+    }
+  });
+}
+</script>
+{% endblock %}

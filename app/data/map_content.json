@@ -1,0 +1,76 @@
+{
+  "_comment": "Word banks the map generator flavors output with, keyed by genre (fantasy / modern / hightech). 'mixed' isn't listed here on purpose - the generator draws from the union of all three genres for it, which is what makes a 'mixed' map feel like a mashup. Editable like npc_data.json / encounter_tables.json.",
+
+  "room_names": {
+    "fantasy": ["Torture Chamber", "Treasure Vault", "Crypt", "Throne Room", "Armory",
+                "Barracks", "Chapel", "Library", "Kitchen", "Prison Cell", "Alchemy Lab",
+                "Trophy Room", "Guard Post", "Storage Room", "Shrine", "Banquet Hall",
+                "Scriptorium", "Torture Pit", "Ritual Chamber", "Wine Cellar"],
+    "modern": ["Office", "Break Room", "Server Closet", "Security Checkpoint", "Records Room",
+               "Reception", "Conference Room", "Storage Closet", "Loading Dock",
+               "Maintenance Room", "Locker Room", "Cafeteria", "IT Room", "Lobby",
+               "Supply Closet", "Interrogation Room", "Evidence Locker", "Boiler Room"],
+    "hightech": ["Server Core", "Reactor Chamber", "Security Checkpoint", "AI Core", "Cryo Bay",
+                 "Drone Bay", "Command Center", "Research Lab", "Airlock", "Med Bay", "Armory",
+                 "Power Relay", "Data Vault", "Control Room", "Fabrication Bay", "Cargo Hold",
+                 "Containment Cell", "Cloning Vat Room"]
+  },
+
+  "room_features": {
+    "fantasy": ["a trapped floor tile", "a hidden lever behind a tapestry", "an ancient mural, faded",
+                "rubble blocking half the room", "strange runes that glow faintly", "a dry fountain",
+                "chains bolted to the wall", "an overturned bookshelf"],
+    "modern": ["flickering fluorescent lights", "a jammed door", "a broken security camera",
+               "spilled coffee and scattered papers", "a cracked window", "an unplugged vending machine",
+               "graffiti on the wall", "a leaking pipe"],
+    "hightech": ["exposed wiring, sparking intermittently", "a malfunctioning terminal",
+                 "a dormant automated turret", "a holographic warning sign, flickering",
+                 "a coolant leak hissing softly", "a shattered viewport", "an inactive drone on the floor",
+                 "a biometric scanner, offline"]
+  },
+
+  "urban_districts": {
+    "fantasy": ["Market Square", "Temple District", "Noble Quarter", "Slums", "Guild Hall Row",
+                "City Gate", "Barracks", "Harbor", "Tavern Row", "Craftsmen's Row", "City Park",
+                "Alchemists' Row"],
+    "modern": ["Downtown", "Financial District", "Residential Block", "Industrial Park",
+               "Shopping District", "Police Precinct", "Warehouse District", "City Park",
+               "Hospital", "Suburbs", "University Campus", "Waterfront"],
+    "hightech": ["Arcology Tower", "Spaceport", "Data Haven", "Corporate Plaza", "Undercity Slums",
+                 "Power Grid Station", "Security Checkpoint", "Med-Bay Complex", "Transit Hub",
+                 "Black Market", "Research Campus", "Orbital Elevator Base"]
+  },
+
+  "cave_features": {
+    "fantasy": ["glowing fungus clusters", "an underground lake", "a stalactite forest",
+                "ancient bones half-buried in silt", "an abandoned mine cart", "a crystal formation",
+                "something large, sleeping, unseen", "a natural rock bridge"],
+    "modern": ["a collapsed tunnel section", "an old sewer pipe", "graffiti on damp stone",
+               "a flooded section", "a rusted ladder to a hatch above", "forgotten storage crates",
+               "a dead flashlight beam's worth of light", "dripping condensation"],
+    "hightech": ["an exposed power conduit, live", "a malfunctioning maintenance drone",
+                 "bioluminescent algae vats", "a sealed blast door", "a tapped geothermal vent",
+                 "a cracked containment pod", "server racks bolted to the cave wall"]
+  },
+
+  "name_parts": {
+    "fantasy": {"prefixes": ["Ander", "Bel", "Cair", "Dun", "Eld", "Fen", "Gal", "Hollow", "Iron", "Karn", "Mor", "Thal"],
+                "suffixes": ["helm", "haven", "spire", "hollow", "ford", "moor", "reach", "watch", "fell", "gard", "mere", "wick"]},
+    "modern":  {"prefixes": ["North", "West", "Port", "Lake", "Mill", "Spring", "Fair", "Oak", "River", "Union", "Cedar", "Elm"],
+                "suffixes": ["ton", "ville", "burg", "field", "wood", "dale", "port", "view", "land", "boro", "haven", "creek"]},
+    "hightech":{"prefixes": ["Neo", "Cyber", "Nova", "Zenith", "Vex", "Kryo", "Orbit", "Chrome", "Helix", "Quantum", "Axiom", "Null"],
+                "suffixes": ["City", "Grid", "Station", "Sector", "Complex", "Node", "Spire", "Hub", "Reach", "Prime", "Core", "Array"]}
+  },
+
+  "biome_labels": {
+    "fantasy": {"ocean": "Ocean", "coast": "Coast", "plains": "Plains", "forest": "Forest",
+                "hills": "Hills", "mountains": "Mountains", "desert": "Desert",
+                "tundra": "Frozen Wastes", "swamp": "Swamp"},
+    "modern": {"ocean": "Ocean", "coast": "Coastline", "plains": "Farmland", "forest": "Woodland",
+               "hills": "Hill Country", "mountains": "Mountains", "desert": "Desert",
+               "tundra": "Tundra", "swamp": "Wetlands"},
+    "hightech": {"ocean": "Ocean", "coast": "Coastal Zone", "plains": "Agricultural Zone",
+                 "forest": "Bio-Reserve", "hills": "Highlands", "mountains": "Mountain Range",
+                 "desert": "Wasteland", "tundra": "Frozen Sector", "swamp": "Toxic Marsh"}
+  }
+}

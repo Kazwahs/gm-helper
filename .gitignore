@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Runtime database (per-machine, don't commit your actual game data)
+gm_helper.db
+gm_helper.db-wal
+gm_helper.db-shm
+gm_helper.db-journal
+
+# OS cruft
+.DS_Store
+Thumbs.db

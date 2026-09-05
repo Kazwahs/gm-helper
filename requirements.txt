@@ -1,0 +1,11 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pypdf>=4.0
+python-multipart>=0.0.9
+jinja2>=3.1
+
+# OCR for scanned (image-only) PDFs - optional in spirit, but installed by
+# default since Settings just won't have anything to OCR without them.
+# easyocr pulls in PyTorch, so this is a large install (a GB or more).
+pymupdf>=1.24
+easyocr>=1.7

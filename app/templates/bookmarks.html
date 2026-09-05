@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Bookmarks{% endblock %}
+{% block content %}
+<h1>Bookmarks</h1>
+<p class="muted">Bookmark a page from a search result on the Library page, organize them into collections, and jot notes for session prep.</p>
+
+<div class="card">
+  <h3>New collection</h3>
+  <form id="new-collection-form" class="row">
+    <input type="text" id="new-collection-name" class="input-wide" placeholder="e.g. Curse of Strahd - session prep" required>
+    <button type="submit">Create</button>
+  </form>
+</div>
+
+{% for c in collections %}
+  <div class="card" data-collection-id="{{ c.id }}">
+    <div class="row" style="justify-content: space-between;">
+      <h3>{{ c.name }} <span class="muted">({{ c.bookmarks | length }})</span></h3>
+      <button class="secondary danger delete-collection-btn">Delete collection</button>
+    </div>
+
+    {% if not c.bookmarks %}
+      <p class="muted">No bookmarks in this collection yet.</p>
+    {% else %}
+      <div class="table-scroll">
+      <table>
+        <thead><tr><th>Book</th><th>Page</th><th>Note</th><th></th></tr></thead>
+        <tbody>
+        {% for bm in c.bookmarks %}
+          <tr data-bookmark-id="{{ bm.id }}">
+            <td>{{ bm.book_title }} <span class="muted">({{ bm.publisher }}{% if bm.series %} / {{ bm.series }}{% endif %})</span></td>
+            <td>
+              {% if bm.page_number %}
+                <a href="/books/{{ bm.book_id }}/file#page={{ bm.page_number }}" target="_blank" rel="noopener">p.{{ bm.page_number }}</a>
+              {% else %}
+                <a href="/books/{{ bm.book_id }}/file" target="_blank" rel="noopener">open</a>
+              {% endif %}
+            </td>
+            <td><input type="text" class="note-input" value="{{ bm.note or '' }}" placeholder="Add a note..." style="width:100%;"></td>
+            <td><button class="secondary delete-bookmark-btn">Remove</button></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+    {% endif %}
+  </div>
+{% else %}
+  <p class="muted">No collections yet. Create one above, then bookmark pages from a Library search.</p>
+{% endfor %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('new-collection-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('new-collection-name');
+  try {
+    await postForm('/api/bookmarks/collections', {name: input.value});
+    location.reload();
+  } catch (err) {
+    alert('Could not create collection: ' + err.message);
+  }
+});
+
+document.querySelectorAll('.delete-collection-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('[data-collection-id]');
+    if (!confirm('Delete this collection and all its bookmarks?')) return;
+    await postForm(`/api/bookmarks/collections/${card.dataset.collectionId}/delete`, {});
+    card.remove();
+  });
+});
+
+document.querySelectorAll('.delete-bookmark-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const row = btn.closest('[data-bookmark-id]');
+    await postForm(`/api/bookmarks/${row.dataset.bookmarkId}/delete`, {});
+    row.remove();
+  });
+});
+
+document.querySelectorAll('.note-input').forEach(input => {
+  let timer = null;
+  const row = input.closest('[data-bookmark-id]');
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      await postForm(`/api/bookmarks/${row.dataset.bookmarkId}/note`, {note: input.value});
+    }, 600);
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Campaigns{% endblock %}
+{% block content %}
+<h1>Campaigns{% if game %} - {{ game.name }}{% endif %}</h1>
+<p class="muted">
+  Flesh out a campaign here: its premise and tone, the plot threads in motion, the cast and
+  factions driving them, key locations, a session-by-session log, and the books and pages
+  you'll need on hand to run it - all in one place.
+</p>
+
+<div class="card">
+  <h3>New campaign</h3>
+  <form id="new-campaign-form">
+    <div class="row">
+      <input type="text" name="title" placeholder="Campaign title" required style="min-width:260px;">
+      {% if game_key %}
+        <input type="hidden" name="game_key" value="{{ game_key }}">
+      {% else %}
+        <select name="game_key" required>
+          <option value="">Which game?</option>
+          {% for g in all_games %}<option value="{{ g.key }}">{{ g.name }}</option>{% endfor %}
+        </select>
+      {% endif %}
+      <button type="submit">Create campaign</button>
+    </div>
+  </form>
+</div>
+
+{% if not campaigns %}
+  <p class="muted">No campaigns yet - create one above to start fleshing it out.</p>
+{% else %}
+  {% for c in campaigns %}
+    <a class="card" href="/campaigns/{{ c.id }}" style="display:block; text-decoration:none; color:inherit;">
+      <div class="row" style="justify-content: space-between;">
+        <h3 style="margin:0;">{{ c.title }}</h3>
+        <span class="badge {{ 'good' if c.status == 'active' else ('bad' if c.status == 'completed' else '') }}">{{ c.status }}</span>
+      </div>
+      {% if not game_key %}<p class="muted" style="margin:0.25rem 0;">{{ game_names.get(c.game_key, c.game_key) }}</p>{% endif %}
+      {% if c.pitch %}<p style="margin:0.5rem 0 0;">{{ c.pitch }}</p>{% endif %}
+    </a>
+  {% endfor %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('new-campaign-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const data = {
+    title: form.title.value,
+    game_key: form.game_key.value,
+  };
+  if (!data.game_key) { alert('Choose a game for this campaign.'); return; }
+  try {
+    const res = await postForm('/api/campaigns', data);
+    location.href = `/campaigns/${res.id}`;
+  } catch (err) {
+    alert('Could not create campaign: ' + err.message);
+  }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+
+<div class="card">
+  <h3>Library folder</h3>
+  <p class="muted">
+    Point this at the root folder that contains your <code>Publisher/Series/...</code> book
+    folders (the same library you'd browse in Chaptarr or any file manager). This is the only
+    thing that differs from one person's setup to the next.
+  </p>
+  <form method="post" action="/settings/library-root">
+    <div class="row">
+      <input type="text" name="library_root" value="{{ library_root }}" placeholder="/path/to/your/library" class="input-wide-lg">
+      <button type="submit">Save</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Scan &amp; index</h3>
+  <p class="muted">
+    Scan finds books on disk and files them under the right game (see
+    <code>app/data/games.json</code> to edit how Series folders map to games).
+    Index extracts text so the Library page's search box can find things inside the PDFs -
+    it can take a while for a large library, and older scanned PDFs with no text layer
+    will show as "not searchable".
+  </p>
+  <div class="row" id="index-buttons">
+    <button id="scan-btn">Scan library</button>
+    <button id="index-btn" class="secondary">Index new/changed books</button>
+    <button id="reindex-btn" class="secondary">Re-index everything</button>
+  </div>
+
+  <div id="index-progress" style="display:none; margin-top:1rem;">
+    <div class="progress-outer"><div class="progress-bar" id="progress-bar-fill"></div></div>
+    <div class="progress-label" id="progress-label"></div>
+  </div>
+
+  <div id="scan-result" class="result-box" style="display:none;"></div>
+</div>
+
+<div class="card">
+  <h3>OCR scanned books</h3>
+  <p class="muted">
+    {{ ocr_counts.pending }} scanned book(s) have no embedded text and are waiting for OCR;
+    {{ ocr_counts.failed }} previous attempt(s) found nothing readable;
+    {{ ocr_counts.ocr_searchable }} book(s) are searchable thanks to OCR so far.
+    OCR only feeds this app's own search index - your PDF files on disk are never changed
+    or duplicated. It's much slower than normal indexing (seconds per <em>page</em>, not per
+    book), and the first run downloads EasyOCR's recognition models, so start with the test
+    batch before committing to the whole library overnight.
+  </p>
+  <div class="row" id="ocr-buttons">
+    <button id="ocr-test-btn" class="secondary">OCR a test batch (5 books)</button>
+    <button id="ocr-all-btn">OCR all remaining scanned books</button>
+    <button id="ocr-retry-btn" class="secondary">Retry failed OCR attempts</button>
+  </div>
+
+  <div id="ocr-progress" style="display:none; margin-top:1rem;">
+    <div class="progress-outer"><div class="progress-bar" id="ocr-progress-bar-fill"></div></div>
+    <div class="progress-label" id="ocr-progress-label"></div>
+  </div>
+
+  <div id="ocr-result" class="result-box" style="display:none;"></div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+const resultBox = document.getElementById('scan-result');
+const indexButtons = document.getElementById('index-buttons');
+const progressWrap = document.getElementById('index-progress');
+const progressFill = document.getElementById('progress-bar-fill');
+const progressLabel = document.getElementById('progress-label');
+
+function showResult(obj) {
+  resultBox.style.display = 'block';
+  resultBox.textContent = JSON.stringify(obj, null, 2);
+}
+
+function setButtonsEnabled(enabled) {
+  indexButtons.querySelectorAll('button').forEach(b => b.disabled = !enabled);
+}
+
+let pollTimer = null;
+
+function renderProgress(state) {
+  if (!state.running && !state.total) {
+    progressWrap.style.display = 'none';
+    return;
+  }
+  progressWrap.style.display = 'block';
+  const pct = state.total ? Math.round((state.done / state.total) * 100) : 0;
+  progressFill.style.width = pct + '%';
+
+  const modeLabel = state.mode === 'all' ? 'Re-indexing' : 'Indexing';
+  if (state.running) {
+    let label = `${modeLabel}: ${state.done} / ${state.total} (${pct}%)`;
+    if (state.current_title) label += ` — <span class="current-title">${escapeHtml(state.current_title)}</span>`;
+    progressLabel.innerHTML = label;
+  } else if (state.error) {
+    progressLabel.textContent = `Stopped with an error: ${state.error}`;
+  } else if (state.finished_summary) {
+    const s = state.finished_summary;
+    progressLabel.textContent = `Done — ${s.indexed} indexed (${s.with_text} searchable, ${s.no_text} no text layer, ${s.failed} failed).`;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function pollProgress() {
+  const res = await fetch('/api/index/progress');
+  const state = await res.json();
+  renderProgress(state);
+  if (state.running) {
+    pollTimer = setTimeout(pollProgress, 750);
+    setButtonsEnabled(false);
+  } else {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+    setButtonsEnabled(true);
+  }
+}
+
+async function startIndexing(mode) {
+  setButtonsEnabled(false);
+  try {
+    const res = await postForm('/api/index', {mode});
+    pollProgress();
+  } catch (e) {
+    showResult({error: e.message});
+    setButtonsEnabled(true);
+  }
+}
+
+document.getElementById('scan-btn').addEventListener('click', async () => {
+  showResult({status: 'scanning...'});
+  try {
+    const res = await fetch('/api/scan', {method: 'POST'});
+    showResult(await res.json());
+  } catch (e) { showResult({error: e.message}); }
+});
+document.getElementById('index-btn').addEventListener('click', () => startIndexing('pending'));
+document.getElementById('reindex-btn').addEventListener('click', () => startIndexing('all'));
+
+// Resume showing progress if a job was already running when this page loaded
+// (e.g. you started it, navigated away, and came back).
+pollProgress();
+
+// ---- OCR ----
+const ocrResultBox = document.getElementById('ocr-result');
+const ocrButtons = document.getElementById('ocr-buttons');
+const ocrProgressWrap = document.getElementById('ocr-progress');
+const ocrProgressFill = document.getElementById('ocr-progress-bar-fill');
+const ocrProgressLabel = document.getElementById('ocr-progress-label');
+
+function showOcrResult(obj) {
+  ocrResultBox.style.display = 'block';
+  ocrResultBox.textContent = JSON.stringify(obj, null, 2);
+}
+
+function setOcrButtonsEnabled(enabled) {
+  ocrButtons.querySelectorAll('button').forEach(b => b.disabled = !enabled);
+}
+
+let ocrPollTimer = null;
+
+function renderOcrProgress(state) {
+  if (!state.running && !state.total_books) {
+    ocrProgressWrap.style.display = 'none';
+    return;
+  }
+  ocrProgressWrap.style.display = 'block';
+  const pct = state.total_books ? Math.round((state.done_books / state.total_books) * 100) : 0;
+  ocrProgressFill.style.width = pct + '%';
+
+  if (state.running) {
+    let label = `OCR: book ${state.done_books + 1} / ${state.total_books} (${pct}% of books done)`;
+    if (state.current_title) {
+      label += ` — <span class="current-title">${escapeHtml(state.current_title)}</span>`;
+      if (state.current_book_pages) {
+        label += ` (page ${state.current_page} / ${state.current_book_pages})`;
+      }
+    }
+    ocrProgressLabel.innerHTML = label;
+  } else if (state.error) {
+    ocrProgressLabel.textContent = `Stopped with an error: ${state.error}`;
+  } else if (state.finished_summary) {
+    const s = state.finished_summary;
+    ocrProgressLabel.textContent = `Done — ${s.ocr_attempted} book(s) OCR'd (${s.with_text} now searchable, ${s.no_text} still unreadable, ${s.failed} failed).`;
+  }
+}
+
+async function pollOcrProgress() {
+  const res = await fetch('/api/ocr/progress');
+  const state = await res.json();
+  renderOcrProgress(state);
+  if (state.running) {
+    ocrPollTimer = setTimeout(pollOcrProgress, 1000);
+    setOcrButtonsEnabled(false);
+  } else {
+    if (ocrPollTimer) clearTimeout(ocrPollTimer);
+    ocrPollTimer = null;
+    setOcrButtonsEnabled(true);
+  }
+}
+
+async function startOcr(mode, limit) {
+  setOcrButtonsEnabled(false);
+  try {
+    const data = {mode};
+    if (limit) data.limit = limit;
+    await postForm('/api/ocr', data);
+    pollOcrProgress();
+  } catch (e) {
+    showOcrResult({error: e.message});
+    setOcrButtonsEnabled(true);
+  }
+}
+
+document.getElementById('ocr-test-btn').addEventListener('click', () => startOcr('pending', 5));
+document.getElementById('ocr-all-btn').addEventListener('click', () => startOcr('pending'));
+document.getElementById('ocr-retry-btn').addEventListener('click', () => startOcr('retry_failed'));
+
+pollOcrProgress();
+</script>
+{% endblock %}

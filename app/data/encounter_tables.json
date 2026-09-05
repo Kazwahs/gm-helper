@@ -1,0 +1,58 @@
+{
+  "environments": {
+    "Dungeon": [
+      "A pack of scavenger vermin, more of a nuisance than a threat",
+      "A patrol of the dungeon's dominant faction, on schedule",
+      "A wounded creature, desperate and cornered",
+      "A trapped corridor recently sprung by something else",
+      "A rival group of treasure-seekers, tension is high",
+      "A lone guardian bound to a specific chamber",
+      "Sounds of a fight already in progress up ahead",
+      "A friendly (or neutral) creature willing to trade information"
+    ],
+    "Wilderness": [
+      "A territorial predator marking its ground",
+      "A merchant caravan, could use an escort or has one already",
+      "Refugees fleeing something the party hasn't seen yet",
+      "A hunting party from a local settlement",
+      "Weather turning dangerous fast",
+      "Signs of a much bigger creature passing through recently",
+      "A hidden campsite, recently abandoned",
+      "A monster nest, avoidable if noticed in time"
+    ],
+    "Urban": [
+      "A pickpocket makes an attempt on the party",
+      "A street performer drawing a crowd, and cover",
+      "A patrol of the local watch, checking papers",
+      "A brawl spilling out of a tavern",
+      "A beggar with unusually specific information",
+      "A merchant hawking suspiciously good deals",
+      "A funeral procession blocking the street",
+      "Someone being followed asks the party for help"
+    ],
+    "Coastal / Nautical": [
+      "A becalmed ship, crew missing or worse",
+      "A sudden squall threatens the vessel",
+      "Pirates or raiders on the horizon",
+      "A shipwreck survivor clinging to debris",
+      "Strange lights beneath the water at night",
+      "A merchant vessel signaling for aid",
+      "A sea creature investigating the ship",
+      "Smugglers using a hidden cove nearby"
+    ]
+  },
+  "loot": {
+    "coin_by_tier": {
+      "low":  "2d6 x 10 in local currency",
+      "mid":  "3d6 x 50 in local currency",
+      "high": "4d6 x 200 in local currency"
+    },
+    "item_rarity_table": [
+      {"roll": "1-50",  "rarity": "Mundane",   "example": "Ordinary gear, trail rations, a well-made tool"},
+      {"roll": "51-75", "rarity": "Uncommon",  "example": "Finely crafted item, minor alchemical item, a useful map"},
+      {"roll": "76-90", "rarity": "Rare",      "example": "An item with a minor magical or technological enhancement"},
+      {"roll": "91-98", "rarity": "Very Rare", "example": "A significant magical/tech item tied to a faction or legend"},
+      {"roll": "99-100","rarity": "Legendary", "example": "A named artifact with its own history"}
+    ]
+  }
+}

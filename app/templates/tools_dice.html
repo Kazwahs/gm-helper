@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Dice{% endblock %}
+{% block content %}
+<h1>Dice Roller{% if game %} - {{ game.name }}{% endif %}</h1>
+<div class="card">
+  <label class="field-label">Roll a die</label>
+  <div class="dice-tray" id="dice-tray">
+    <button type="button" class="die die-btn die-d4" data-sides="4" style="--die-color:#c48fa0;">d4</button>
+    <button type="button" class="die die-btn die-d6" data-sides="6" style="--die-color:#8fa9c4;">d6</button>
+    <button type="button" class="die die-btn die-d8" data-sides="8" style="--die-color:#a9c48f;">d8</button>
+    <button type="button" class="die die-btn die-d10" data-sides="10" style="--die-color:#c9a66b;">d10</button>
+    <button type="button" class="die die-btn die-d12" data-sides="12" style="--die-color:#b08fc4;">d12</button>
+    <button type="button" class="die die-btn die-d20" data-sides="20" style="--die-color:#c0863f;">d20</button>
+    <button type="button" class="die die-btn die-d100" data-sides="100" style="--die-color:#8fc4bb;">d%</button>
+  </div>
+  <div class="row" style="margin-top:0.75rem;">
+    <div class="field-group" style="margin-bottom:0;">
+      <label class="field-label">Count</label>
+      <input type="number" id="quick-count" value="1" min="1" max="100" style="width:70px;">
+    </div>
+    <div class="field-group" style="margin-bottom:0;">
+      <label class="field-label">Modifier</label>
+      <input type="number" id="quick-modifier" value="0" style="width:70px;">
+    </div>
+    <button type="button" id="adv-btn" class="secondary">Advantage</button>
+    <button type="button" id="dis-btn" class="secondary">Disadvantage</button>
+    <button type="button" id="clear-stage-btn" class="secondary">Clear tray</button>
+  </div>
+
+  <details style="margin-top:0.85rem;">
+    <summary>Advanced: type an expression</summary>
+    <form id="dice-form" class="row" style="margin-top:0.6rem;">
+      <input type="text" id="expr" value="1d20" style="min-width:260px;">
+      <button type="submit" class="secondary">Roll expression</button>
+    </form>
+    <p class="muted">
+      Examples: <code>1d20+5</code>, <code>2d6+3</code>, <code>4d6</code>,
+      <code>2d20kh1</code> (advantage), <code>2d20kl1</code> (disadvantage),
+      or several groups at once: <code>1d20+7 2d6+4</code>.
+    </p>
+  </details>
+
+  <div class="dice-stage" id="dice-stage"></div>
+  <div id="result" class="result-box" style="display:none;"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const DIE_COLORS = {4: "#c48fa0", 6: "#8fa9c4", 8: "#a9c48f", 10: "#c9a66b", 12: "#b08fc4", 20: "#c0863f", 100: "#8fc4bb"};
+
+function dieShapeClass(sides) {
+  return sides === 100 ? "die-d100" : `die-d${sides}`;
+}
+
+function createDieEl(sides) {
+  const d = document.createElement("div");
+  d.className = `die ${dieShapeClass(sides)} rolling`;
+  d.style.setProperty("--die-color", DIE_COLORS[sides] || "#8fa9c4");
+  const label = document.createElement("span");
+  label.className = "die-label";
+  label.textContent = sides === 100 ? "d%" : `d${sides}`;
+  const val = document.createElement("span");
+  val.className = "die-value";
+  val.textContent = "?";
+  d.appendChild(label);
+  d.appendChild(val);
+  return {el: d, valueEl: val};
+}
+
+// Rapidly cycles random faces before settling on the real result, so a
+// click reads as a die actually being rolled rather than a number just
+// appearing.
+function animateDie(sides, finalValue, extraClass) {
+  const {el, valueEl} = createDieEl(sides);
+  if (extraClass) el.classList.add(extraClass);
+  const maxTicks = 10 + Math.floor(Math.random() * 5);
+  let ticks = 0;
+  const timer = setInterval(() => {
+    valueEl.textContent = String(1 + Math.floor(Math.random() * sides));
+    ticks++;
+    if (ticks >= maxTicks) {
+      clearInterval(timer);
+      valueEl.textContent = String(finalValue);
+      el.classList.remove("rolling");
+      el.classList.add("settled");
+      if (sides === 20 && finalValue === 20) el.classList.add("crit-good");
+      if (sides === 20 && finalValue === 1) el.classList.add("crit-bad");
+    }
+  }, 55);
+  return el;
+}
+
+// Matches each rolled value back to whether it ended up in the group's
+// "dropped" list (used for advantage/disadvantage), tolerating duplicate
+// values by consuming one match per occurrence.
+function markDropped(rolls, dropped) {
+  const remaining = [...dropped];
+  return rolls.map((v) => {
+    const idx = remaining.indexOf(v);
+    if (idx !== -1) { remaining.splice(idx, 1); return true; }
+    return false;
+  });
+}
+
+async function rollExpression(expr) {
+  const box = document.getElementById("result");
+  let res;
+  try {
+    res = await postForm("/api/dice/roll", {expr});
+  } catch (err) {
+    box.style.display = "block";
+    box.textContent = "Error: " + err.message;
+    return;
+  }
+
+  const stage = document.getElementById("dice-stage");
+  const group = document.createElement("div");
+  group.className = "dice-group";
+  stage.insertBefore(group, stage.firstChild);
+
+  res.groups.forEach((g) => {
+    const dropped = markDropped(g.rolls, g.dropped);
+    g.rolls.forEach((val, i) => {
+      group.appendChild(animateDie(g.sides, val, dropped[i] ? "dropped" : null));
+    });
+    if (g.modifier) {
+      const chip = document.createElement("div");
+      chip.className = "die-modifier";
+      chip.textContent = (g.modifier >= 0 ? "+" : "") + g.modifier;
+      group.appendChild(chip);
+    }
+  });
+
+  box.style.display = "block";
+  setTimeout(() => {
+    const lines = res.groups.map((g) => {
+      let s = `${g.expr}: [${g.rolls.join(", ")}]`;
+      if (g.dropped.length) s += ` (kept ${g.kept.join(", ")}, dropped ${g.dropped.join(", ")})`;
+      if (g.modifier) s += ` ${g.modifier >= 0 ? "+" : ""}${g.modifier}`;
+      s += ` = ${g.total}`;
+      return s;
+    });
+    lines.push("");
+    lines.push(`TOTAL: ${res.grand_total}`);
+    box.textContent = lines.join("\n");
+  }, 750);
+}
+
+document.querySelectorAll(".die-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const sides = parseInt(btn.dataset.sides, 10);
+    const count = Math.max(1, parseInt(document.getElementById("quick-count").value || "1", 10));
+    const mod = parseInt(document.getElementById("quick-modifier").value || "0", 10);
+    let expr = `${count}d${sides}`;
+    if (mod) expr += (mod >= 0 ? "+" : "") + mod;
+    rollExpression(expr);
+  });
+});
+
+document.getElementById("adv-btn").addEventListener("click", () => rollExpression("2d20kh1"));
+document.getElementById("dis-btn").addEventListener("click", () => rollExpression("2d20kl1"));
+document.getElementById("clear-stage-btn").addEventListener("click", () => {
+  document.getElementById("dice-stage").innerHTML = "";
+  document.getElementById("result").style.display = "none";
+});
+
+document.getElementById("dice-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  rollExpression(document.getElementById("expr").value);
+});
+</script>
+{% endblock %}
