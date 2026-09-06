@@ -7,7 +7,7 @@ ocean (so it reads as a whole landmass) and a latitude-driven tundra band;
 'wilderness' is a smaller, mostly-land regional patch."""
 import math
 
-from . import content, svg
+from . import content, objects, svg
 
 R = 17  # hex circumradius, px
 
@@ -50,12 +50,19 @@ def _neighbors(col, row, cols, rows):
     return result
 
 
-def _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, n_bumps, sign=1.0):
+def _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, n_bumps, radius_scale=1.0, combine="sum"):
+    """Builds a height field from randomly placed gaussian bumps. `combine`
+    controls how overlapping bumps interact: "sum" (the default) lets
+    nearby bumps reinforce each other into one broad landmass; "max" takes
+    only the strongest bump at each point, so bumps stay as separate,
+    sharply-bounded peaks instead of merging their surrounding areas
+    together - which is what actually produces isolated islands rather
+    than one blobby continent with a rougher coastline."""
     bumps = []
     for _ in range(n_bumps):
         bx = rng.uniform(0, canvas_w)
         by = rng.uniform(0, canvas_h)
-        radius = rng.uniform(0.18, 0.38) * max(canvas_w, canvas_h)
+        radius = rng.uniform(0.18, 0.38) * radius_scale * max(canvas_w, canvas_h)
         strength = rng.uniform(0.55, 1.0)
         bumps.append((bx, by, radius, strength))
 
@@ -67,12 +74,100 @@ def _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, n_bumps, si
             v = 0.0
             for bx, by, radius, strength in bumps:
                 d2 = (cx - bx) ** 2 + (cy - by) ** 2
-                v += strength * math.exp(-d2 / (2 * radius * radius))
+                contribution = strength * math.exp(-d2 / (2 * radius * radius))
+                v = max(v, contribution) if combine == "max" else v + contribution
             field[(col, row)] = v
             max_v = max(max_v, v)
     for k in field:
         field[k] = field[k] / max_v
     return field
+
+
+_LANDMASS_WEIGHTS = [("continent", 0.4), ("archipelago", 0.25), ("peninsula", 0.2), ("inland_sea", 0.15)]
+_LANDMASS_LABELS = {
+    "continent": "", "archipelago": " (archipelago)",
+    "peninsula": " (peninsula)", "inland_sea": " (inland sea)",
+}
+_EDGE_DIRECTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+
+def _choose_landmass(rng):
+    r = rng.random()
+    acc = 0.0
+    for name, weight in _LANDMASS_WEIGHTS:
+        acc += weight
+        if r <= acc:
+            return name
+    return _LANDMASS_WEIGHTS[-1][0]
+
+
+def _build_height_field(rng, landmass, cols, rows, centers_px, canvas_w, canvas_h, n_hills, base_edge_strength):
+    """Builds the height field for one of four distinct macro-shapes rather
+    than always the same 'one landmass, pulled toward the center' result:
+
+    - continent: the original behavior - bumps plus a radial pull toward
+      ocean at the map edge, reading as one connected landmass.
+    - archipelago: many more, smaller bumps and a raised effective sea
+      level, so land breaks up into scattered islands instead of one mass.
+    - peninsula: land is suppressed on three sides, attached to the map
+      only along one randomly chosen edge, so it tapers to a point.
+    - inland_sea: a deep depression carved into the middle of an otherwise
+      land-covered map, with little to no edge falloff, so the "sea" sits
+      inside the landmass rather than surrounding it.
+    """
+    cx0, cy0 = canvas_w / 2, canvas_h / 2
+    max_r = math.hypot(cx0, cy0)
+    sea_bias = 0.0
+    edge_strength = base_edge_strength
+
+    if landmass == "archipelago":
+        # combine="max" keeps each bump a separate, sharply-bounded peak
+        # instead of letting nearby bumps merge into one shared landmass -
+        # that separation, not the sea_bias below, is what actually reads
+        # as scattered islands rather than a rougher single coastline.
+        height = _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h,
+                                  int(n_hills * 1.6), radius_scale=0.3, combine="max")
+        edge_strength = min(base_edge_strength, 0.15)
+        sea_bias = 0.3
+    else:
+        height = _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, n_hills)
+        if landmass == "inland_sea":
+            edge_strength = base_edge_strength * 0.1
+        elif landmass == "peninsula":
+            # The directional suppression below already tapers land away
+            # from three sides - the usual radial "recede from every edge"
+            # falloff would fight that on the fourth (attached) side and
+            # pinch the peninsula off into a detached island in the middle
+            # of the map instead of a tongue of land touching the border.
+            edge_strength = base_edge_strength * 0.12
+
+    peninsula_dir = _EDGE_DIRECTIONS[rng.randrange(len(_EDGE_DIRECTIONS))] if landmass == "peninsula" else None
+
+    for (c, r), (px, py) in centers_px.items():
+        d = math.hypot(px - cx0, py - cy0) / max_r
+        falloff = max(0.0, 1 - (d ** 1.6) * edge_strength)
+        v = height[(c, r)] * (0.35 + 0.65 * falloff) if edge_strength else height[(c, r)]
+
+        if peninsula_dir is not None:
+            ex, ey = peninsula_dir
+            nx, ny = (px - cx0) / cx0, (py - cy0) / cy0
+            align = nx * ex + ny * ey  # +1 toward the attached edge, -1 away from it
+            t = max(0.0, min(1.0, (align + 1) / 2))
+            # the exponent sharpens the gradient into a visible taper toward
+            # a point, rather than just a soft, roughly-round brightness dip;
+            # the floor keeps the far tip from being suppressed to nothing
+            v *= 0.2 + 0.8 * (t ** 1.5)
+
+        height[(c, r)] = max(0.0, v - sea_bias)
+
+    if landmass == "inland_sea":
+        dip_r = max_r * rng.uniform(0.22, 0.3)
+        for (c, r), (px, py) in centers_px.items():
+            d2 = (px - cx0) ** 2 + (py - cy0) ** 2
+            dip = math.exp(-d2 / (2 * dip_r * dip_r))
+            height[(c, r)] = max(0.0, height[(c, r)] - dip * 0.75)
+
+    return height
 
 
 def _biome(h, m, lat, sea_level, use_latitude):
@@ -116,13 +211,9 @@ def generate(rng, genre, map_type, params):
     cx0, cy0 = canvas_w / 2, canvas_h / 2
     max_r = math.hypot(cx0, cy0)
 
-    height = _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, n_hills)
+    landmass = _choose_landmass(rng)
+    height = _build_height_field(rng, landmass, cols, rows, centers_px, canvas_w, canvas_h, n_hills, edge_strength)
     moisture = _gaussian_field(rng, cols, rows, centers_px, canvas_w, canvas_h, max(3, n_hills // 2))
-
-    for (c, r), (px, py) in centers_px.items():
-        d = math.hypot(px - cx0, py - cy0) / max_r
-        falloff = max(0.0, 1 - (d ** 1.6) * edge_strength)
-        height[(c, r)] = height[(c, r)] * (0.35 + 0.65 * falloff) if edge_strength else height[(c, r)]
 
     hexes = {}
     for c in range(cols):
@@ -172,6 +263,21 @@ def generate(rng, genre, map_type, params):
         if all(math.hypot(cpx - centers_px[s][0], cpy - centers_px[s][1]) > min_dist for s, _ in settlements):
             settlements.append((cand, content.generate_name(rng, genre)))
 
+    # Points of interest: landmarks dotted across land hexes not already
+    # spoken for by a settlement or a river, so the map has more to
+    # investigate than just its towns.
+    used_hexes = {c for c, _ in settlements}
+    for river in rivers:
+        used_hexes.update(river["path"])
+    poi_candidates = [
+        (c, r, centers_px[(c, r)][0], centers_px[(c, r)][1])
+        for (c, r), v in hexes.items()
+        if v["biome"] != "ocean" and (c, r) not in used_hexes
+    ]
+    n_poi_target = max(2, (cols * rows) // 70)
+    n_poi = min(len(poi_candidates), rng.randint(n_poi_target, n_poi_target + 2))
+    points_of_interest = objects.place_points_of_interest(rng, poi_candidates, genre, n_poi)
+
     # ---- render ----
     body = [svg.rect(0, 0, canvas_w, canvas_h, _BIOME_COLOR["ocean"])]
     hex_parts = []
@@ -206,6 +312,17 @@ def generate(rng, genre, map_type, params):
         settlement_parts.append(svg.map_el("settlement", cx, cy, "".join(el_parts), fill="#3a2a1a"))
     body.append(svg.group("".join(settlement_parts)))
 
+    poi_color = "#6a3520"
+    poi_scale = R * 0.55
+    poi_parts = []
+    for poi in points_of_interest:
+        pcx, pcy = poi["cx"], poi["cy"]
+        icon_body = objects.render_icon(poi["icon"], pcx, pcy, poi_scale, poi_color)
+        label_body = svg.text(pcx, pcy + poi_scale + 10, poi["label"], size=8, fill="#241a10",
+                               anchor="middle", extra='class="map-el-label"')
+        poi_parts.append(svg.map_el("poi", pcx, pcy, icon_body + label_body, fill=poi_color))
+    body.append(svg.group("".join(poi_parts)))
+
     # Legend.
     biomes_present = sorted({v["biome"] for v in hexes.values()})
     legend_x, legend_y = 10, 10
@@ -228,10 +345,11 @@ def generate(rng, genre, map_type, params):
     body.append(svg.group("".join(rose_parts)))
 
     realm = content.generate_name(rng, genre)
+    landmass_label = _LANDMASS_LABELS[landmass]
     if map_type == "world":
-        title = f"The Lands of {realm} - {content.GENRE_LABELS[genre]}"
+        title = f"The Lands of {realm} - {content.GENRE_LABELS[genre]}{landmass_label}"
     else:
-        title = f"{realm} Wilds - {content.GENRE_LABELS[genre]}"
+        title = f"{realm} Wilds - {content.GENRE_LABELS[genre]}{landmass_label}"
     title_w = 16 + len(title) * 6.2
     body.append(svg.rect(6, canvas_h - 20, title_w, 18, "#241a10", opacity=0.65, rx=3))
     body.append(svg.text(12, canvas_h - 8, title, size=11, fill="#f4ead2", weight="bold"))
@@ -239,6 +357,9 @@ def generate(rng, genre, map_type, params):
     doc = svg.svg_doc(canvas_w, canvas_h, "".join(body))
     return {
         "svg": doc,
-        "meta": {"hexes": len(hexes), "rivers": len(rivers), "settlements": len(settlements), "size": size_key},
+        "meta": {
+            "hexes": len(hexes), "rivers": len(rivers), "settlements": len(settlements),
+            "landmass": landmass, "points_of_interest": len(points_of_interest), "size": size_key,
+        },
         "title_suggestion": title,
     }

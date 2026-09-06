@@ -71,3 +71,52 @@ def minimum_spanning_tree(points):
                     best_dist[i] = d
                     best_from[i] = nearest
     return edges
+
+
+def ensure_connected(centers, edges):
+    """Given a candidate edge list over `centers` that may leave some
+    points unreachable from the rest (e.g. after randomly dropping some
+    candidate connections for a maze-like feel), adds the shortest possible
+    edge between each pair of separate components until every point is
+    reachable from any other. All existing edges are kept as-is."""
+    n = len(centers)
+    if n < 2:
+        return list(edges)
+
+    parent = list(range(n))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    def union(i, j):
+        ri, rj = find(i), find(j)
+        if ri != rj:
+            parent[ri] = rj
+
+    result = list(edges)
+    for i, j in edges:
+        union(i, j)
+
+    components = {}
+    for i in range(n):
+        components.setdefault(find(i), []).append(i)
+    comp_list = list(components.values())
+
+    while len(comp_list) > 1:
+        best = None
+        for a in range(len(comp_list)):
+            for b in range(a + 1, len(comp_list)):
+                for i in comp_list[a]:
+                    for j in comp_list[b]:
+                        d = math.dist(centers[i], centers[j])
+                        if best is None or d < best[0]:
+                            best = (d, i, j, a, b)
+        _, i, j, a, b = best
+        result.append((i, j))
+        merged = comp_list[a] + comp_list[b]
+        comp_list = [c for k, c in enumerate(comp_list) if k not in (a, b)] + [merged]
+
+    return result

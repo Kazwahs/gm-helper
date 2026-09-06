@@ -106,3 +106,117 @@ def test_underground_never_produces_a_completely_blank_map():
     for seed in range(25):
         result = generate_map("underground", "fantasy", params={"size": "small"}, seed=seed)
         assert result["meta"]["floor_cells"] > 0
+
+
+def test_underground_layouts_produce_all_three_archetypes():
+    """caves.py picks one of three structurally distinct floor plans
+    (cavern/tunnels/chambers) per generation - across enough seeds, all
+    three should actually get selected."""
+    layouts_seen = set()
+    for seed in range(60):
+        result = generate_map("underground", "fantasy", params={"size": "medium"}, seed=seed)
+        layouts_seen.add(result["meta"]["layout"])
+    assert layouts_seen == {"cavern", "tunnels", "chambers"}
+
+
+def test_underground_layouts_never_produce_a_blank_map():
+    for seed in range(60):
+        result = generate_map("underground", "fantasy", params={"size": "small"}, seed=seed)
+        assert result["meta"]["floor_cells"] > 0
+
+
+def test_underground_objects_are_wrapped_as_editable_when_present():
+    result = generate_map("underground", "fantasy", params={"size": "large"}, seed=4)
+    if result["meta"]["objects"] > 0:
+        assert 'data-kind="object"' in result["svg"]
+
+
+def test_urban_layouts_produce_all_three_archetypes():
+    """urban.py picks one of three structurally distinct street plans
+    (organic/grid/radial) per generation - across enough seeds, all three
+    should actually get selected."""
+    layouts_seen = set()
+    for seed in range(60):
+        result = generate_map("urban", "fantasy", params={"size": "medium"}, seed=seed)
+        layouts_seen.add(result["meta"]["layout"])
+    assert layouts_seen == {"organic", "grid", "radial"}
+
+
+def test_urban_layouts_never_produce_a_blank_map():
+    for seed in range(60):
+        result = generate_map("urban", "fantasy", params={"size": "small"}, seed=seed)
+        assert result["meta"]["blocks"] > 0
+
+
+def test_urban_district_color_cycling_never_runs_out():
+    """Regression guard: a big 'mixed'-genre map can roll many more
+    distinct districts than the base color palette has entries. Block
+    colors must cycle back around instead of raising StopIteration."""
+    for seed in range(120):
+        result = generate_map("urban", "mixed", params={"size": "large"}, seed=seed)
+        assert result["meta"]["blocks"] > 0
+
+
+def test_urban_objects_are_wrapped_as_editable_when_present():
+    result = generate_map("urban", "fantasy", params={"size": "large"}, seed=1)
+    if result["meta"]["objects"] > 0:
+        assert 'data-kind="object"' in result["svg"]
+
+
+@pytest.mark.parametrize("map_type", ["dungeon", "interior"])
+def test_room_layouts_produce_all_three_archetypes(map_type):
+    """rooms.py picks one of three structurally distinct layouts (warren/
+    keep/hub) per generation - across enough seeds, all three should
+    actually get selected rather than one dominating or a typo silently
+    excluding one."""
+    layouts_seen = set()
+    for seed in range(60):
+        result = generate_map(map_type, "fantasy", params={"size": "medium"}, seed=seed)
+        layouts_seen.add(result["meta"]["layout"])
+    assert layouts_seen == {"warren", "keep", "hub"}
+
+
+@pytest.mark.parametrize("map_type", ["dungeon", "interior"])
+def test_room_layouts_stay_valid_and_connected(map_type):
+    """Whichever layout gets picked, the room count in meta must still
+    match the rendered rooms, and the map must still be well-formed."""
+    for seed in range(40):
+        result = generate_map(map_type, "fantasy", params={"size": "medium"}, seed=seed)
+        ET.fromstring(result["svg"])
+        assert result["svg"].count('data-kind="room"') == result["meta"]["rooms"]
+
+
+@pytest.mark.parametrize("map_type", ["dungeon", "interior"])
+def test_room_objects_are_wrapped_as_editable_when_present(map_type):
+    result = generate_map(map_type, "fantasy", params={"size": "large"}, seed=11)
+    if result["meta"]["objects"] > 0:
+        assert 'data-kind="object"' in result["svg"]
+
+
+@pytest.mark.parametrize("map_type", ["wilderness", "world"])
+def test_terrain_landmasses_produce_all_four_variants(map_type):
+    landmasses_seen = set()
+    for seed in range(80):
+        result = generate_map(map_type, "fantasy", params={"size": "medium"}, seed=seed)
+        landmasses_seen.add(result["meta"]["landmass"])
+    assert landmasses_seen == {"continent", "archipelago", "peninsula", "inland_sea"}
+
+
+@pytest.mark.parametrize("map_type", ["wilderness", "world"])
+def test_terrain_never_produces_a_completely_landless_map(map_type):
+    """Regression guard for the landmass templates: none of the four should
+    ever be able to suppress land down to nothing (or, for inland_sea,
+    flood so much of the interior that no land is left)."""
+    for seed in range(60):
+        result = generate_map(map_type, "fantasy", params={"size": "small"}, seed=seed)
+        assert "ocean" not in result["svg"] or 'data-kind="hex"' in result["svg"]
+        # At least one non-ocean biome swatch must appear in the legend.
+        assert any(biome in result["svg"] for biome in
+                   ("Plains", "Forest", "Hills", "Mountains", "Desert", "Swamp", "Coast"))
+
+
+@pytest.mark.parametrize("map_type", ["wilderness", "world"])
+def test_terrain_points_of_interest_are_wrapped_as_editable_when_present(map_type):
+    result = generate_map(map_type, "fantasy", params={"size": "large"}, seed=21)
+    if result["meta"]["points_of_interest"] > 0:
+        assert 'data-kind="poi"' in result["svg"]

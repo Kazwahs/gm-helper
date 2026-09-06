@@ -4,7 +4,23 @@ import random
 
 import pytest
 
-from app.maps.shapes import bsp_partition, minimum_spanning_tree
+from app.maps.shapes import bsp_partition, ensure_connected, minimum_spanning_tree
+
+
+def _all_reachable(n, edges):
+    adjacency = {i: set() for i in range(n)}
+    for i, j in edges:
+        adjacency[i].add(j)
+        adjacency[j].add(i)
+    seen = {0}
+    frontier = [0]
+    while frontier:
+        cur = frontier.pop()
+        for nxt in adjacency[cur]:
+            if nxt not in seen:
+                seen.add(nxt)
+                frontier.append(nxt)
+    return seen == set(range(n))
 
 
 def test_bsp_partition_leaves_cover_the_whole_area_without_overlap():
@@ -86,3 +102,37 @@ def test_mst_is_a_true_minimum_for_a_simple_case():
         for i, j in edges
     )
     assert total_length == pytest.approx(4 * (50 ** 0.5), rel=1e-6)
+
+
+def test_ensure_connected_no_op_when_already_connected():
+    centers = [(0, 0), (10, 0), (20, 0)]
+    edges = [(0, 1), (1, 2)]
+    result = ensure_connected(centers, edges)
+    assert result == edges
+
+
+def test_ensure_connected_joins_separate_components():
+    # Two disconnected pairs, far apart - ensure_connected must add exactly
+    # one bridging edge to make the whole set reachable from any point.
+    centers = [(0, 0), (1, 0), (100, 0), (101, 0)]
+    edges = [(0, 1), (2, 3)]
+    result = ensure_connected(centers, edges)
+    assert len(result) == 3
+    assert _all_reachable(len(centers), result)
+    # The original edges must be preserved untouched.
+    assert (0, 1) in result and (2, 3) in result
+
+
+def test_ensure_connected_picks_the_shortest_bridging_edge():
+    # Three isolated points; the cheapest way to connect them is via the
+    # closer pair first, not any arbitrary pairing.
+    centers = [(0, 0), (1, 0), (50, 0)]
+    edges = []
+    result = ensure_connected(centers, edges)
+    assert _all_reachable(len(centers), result)
+    assert (0, 1) in result or (1, 0) in result
+
+
+def test_ensure_connected_handles_trivial_inputs():
+    assert ensure_connected([], []) == []
+    assert ensure_connected([(0, 0)], []) == []
