@@ -12,6 +12,19 @@
 
 <div id="games-result" class="result-box" style="display:none;"></div>
 
+<div class="card">
+  <h3 style="margin-top:0;">Add a new game</h3>
+  <p class="muted">
+    For a system you don't have any books scanned for yet (or just want to set up ahead of time).
+    Once it exists you can move series into it below, or pick it from the game dropdown anywhere in the app.
+  </p>
+  <form id="new-game-form" class="row">
+    <input type="text" id="new-game-name" placeholder="Game name (e.g. Blades in the Dark)" class="input-wide" required>
+    <input type="text" id="new-game-system" placeholder="System (optional, e.g. d20, palladium)" style="width:220px; max-width:100%;">
+    <button type="submit">Add game</button>
+  </form>
+</div>
+
 <h3>Games</h3>
 {% for g in games %}
   <div class="card" data-game-key="{{ g.key }}">
@@ -81,6 +94,17 @@ function showResult(obj) {
   box.style.display = 'block';
   box.textContent = JSON.stringify(obj, null, 2);
 }
+
+document.getElementById('new-game-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nameInput = document.getElementById('new-game-name');
+  const systemInput = document.getElementById('new-game-system');
+  try {
+    const res = await postForm('/api/games/create', {name: nameInput.value, system: systemInput.value});
+    showResult(res);
+    location.reload();
+  } catch (err) { showResult({error: err.message}); }
+});
 
 document.querySelectorAll('.rename-btn').forEach(btn => {
   btn.addEventListener('click', async () => {

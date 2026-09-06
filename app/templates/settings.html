@@ -4,6 +4,42 @@
 <h1>Settings</h1>
 
 <div class="card">
+  <h3>Appearance</h3>
+  <p class="muted">Pick a look, or build your own from the current one.</p>
+  <div class="theme-swatches" id="theme-swatches">
+    {% for key, label in theme_presets.items() %}
+      <button type="button" class="theme-swatch{% if theme_name == key %} active{% endif %}" data-theme-key="{{ key }}">
+        <span class="theme-swatch-preview" data-preview="{{ key }}">
+          <span class="tsp-bar"></span>
+          <span class="tsp-body"><span class="tsp-dot"></span></span>
+        </span>
+        {{ label }}
+      </button>
+    {% endfor %}
+  </div>
+
+  <div class="subcard" style="margin-top:1rem;">
+    <strong>Customize</strong>
+    <p class="muted" style="margin-top:0.3rem;">
+      Pick a color for each part of the page, then choose "Custom" above to use it.
+      Starts from whichever theme is currently active.
+    </p>
+    <div class="custom-theme-grid" id="custom-theme-grid">
+      {% for key in custom_keys %}
+        <div class="custom-theme-field">
+          <label for="ct-{{ key }}">{{ key.replace('-', ' ') }}</label>
+          <input type="color" id="ct-{{ key }}" data-key="{{ key }}" value="{{ custom_theme_vars.get(key, '#000000') }}">
+        </div>
+      {% endfor %}
+    </div>
+    <div class="row" style="margin-top:0.75rem;">
+      <button type="button" id="save-custom-theme-btn" class="secondary">Save &amp; use custom theme</button>
+    </div>
+    <div id="theme-result" class="result-box" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="card">
   <h3>Library folder</h3>
   <p class="muted">
     Point this at the root folder that contains your <code>Publisher/Series/...</code> book
@@ -69,6 +105,77 @@
 {% endblock %}
 {% block scripts %}
 <script>
+// ---- Appearance ----
+// Mirrors the :root/[data-theme] color values in style.css just closely
+// enough to paint small swatch previews without switching the whole page's
+// theme - the actual theme switch below reloads the page instead, which is
+// what applies the real thing.
+const THEME_PREVIEW_COLORS = {
+  tavern:    { bg: '#1b1a17', panel: '#24221e', accent: '#c0863f' },
+  parchment: { bg: '#f4ecd8', panel: '#ece1c6', accent: '#8a3324' },
+  arcane:    { bg: '#14101f', panel: '#1d1830', accent: '#8b5cf6' },
+  daylight:  { bg: '#f7f8fa', panel: '#ffffff', accent: '#2563eb' },
+};
+
+function paintPreview(el, colors) {
+  el.style.background = colors.bg;
+  el.querySelector('.tsp-bar').style.background = colors.panel;
+  el.querySelector('.tsp-dot').style.background = colors.accent;
+}
+
+function customPreviewColors() {
+  const bg = document.getElementById('ct-bg');
+  const panel = document.getElementById('ct-bg-panel');
+  const accent = document.getElementById('ct-accent');
+  return {
+    bg: bg ? bg.value : '#1b1a17',
+    panel: panel ? panel.value : '#24221e',
+    accent: accent ? accent.value : '#c0863f',
+  };
+}
+
+function paintAllPreviews() {
+  document.querySelectorAll('.theme-swatch-preview').forEach((el) => {
+    const key = el.dataset.preview;
+    const colors = key === 'custom' ? customPreviewColors() : THEME_PREVIEW_COLORS[key];
+    if (colors) paintPreview(el, colors);
+  });
+}
+paintAllPreviews();
+
+document.getElementById('theme-swatches').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.theme-swatch');
+  if (!btn) return;
+  try {
+    await postForm('/api/settings/theme', {name: btn.dataset.themeKey});
+    location.reload();
+  } catch (err) {
+    const box = document.getElementById('theme-result');
+    box.style.display = 'block';
+    box.textContent = 'Error: ' + err.message;
+  }
+});
+
+document.querySelectorAll('#custom-theme-grid input[type=color]').forEach((input) => {
+  input.addEventListener('input', paintAllPreviews);
+});
+
+document.getElementById('save-custom-theme-btn').addEventListener('click', async () => {
+  const box = document.getElementById('theme-result');
+  const data = {};
+  document.querySelectorAll('#custom-theme-grid input[type=color]').forEach((input) => {
+    data[input.dataset.key] = input.value;
+  });
+  try {
+    await postForm('/api/settings/custom-theme', data);
+    await postForm('/api/settings/theme', {name: 'custom'});
+    location.reload();
+  } catch (err) {
+    box.style.display = 'block';
+    box.textContent = 'Error: ' + err.message;
+  }
+});
+
 const resultBox = document.getElementById('scan-result');
 const indexButtons = document.getElementById('index-buttons');
 const progressWrap = document.getElementById('index-progress');

@@ -37,4 +37,8 @@ DEFAULT_SETTINGS = {
     # The one thing that differs per-user: where their library lives.
     # Left empty on first run - the Settings page asks for it.
     "library_root": "",
+    # Appearance - see app/theme.py for the actual defaulting/validation
+    # logic. Listed here just so a fresh settings table's shape is obvious.
+    "theme_name": "tavern",
+    "custom_theme_vars": "",
 }

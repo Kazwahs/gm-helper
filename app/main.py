@@ -11,6 +11,7 @@ from . import bookmarks as bookmarks_module
 from . import campaigns as campaigns_module
 from . import config, database
 from . import gm_screen
+from . import theme as theme_module
 from . import maps_store
 from .library import games as games_module
 from .library import scanner, indexer, search as search_module
@@ -41,7 +42,11 @@ def _library_root():
 
 
 def _base_ctx(request):
-    return {"request": request, "library_root": _library_root()}
+    theme_name = theme_module.get_theme_name()
+    ctx = {"request": request, "library_root": _library_root(), "theme_name": theme_name}
+    if theme_name == "custom":
+        ctx["custom_theme_vars"] = theme_module.get_custom_vars()
+    return ctx
 
 
 # ---------------------------------------------------------------- dashboard
@@ -63,6 +68,11 @@ def settings_page(request: Request, scan_result: str = None):
     ctx = _base_ctx(request)
     ctx["scan_result"] = scan_result
     ctx["ocr_counts"] = ocr_module.count_pending() if _library_root() else {"pending": 0, "failed": 0, "ocr_searchable": 0}
+    ctx["theme_presets"] = theme_module.PRESETS
+    ctx["custom_keys"] = theme_module.CUSTOM_KEYS
+    # Always available (not just when "custom" is active) so the customize
+    # panel has something sensible to start from either way.
+    ctx["custom_theme_vars"] = theme_module.get_custom_vars()
     return templates.TemplateResponse(request, "settings.html", ctx)
 
 
@@ -70,6 +80,26 @@ def settings_page(request: Request, scan_result: str = None):
 def set_library_root(library_root: str = Form(...)):
     database.set_setting("library_root", library_root.strip())
     return RedirectResponse(url="/settings", status_code=303)
+
+
+@app.post("/api/settings/theme")
+def set_theme(name: str = Form(...)):
+    try:
+        theme_module.set_theme_name(name)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True, "theme_name": name})
+
+
+@app.post("/api/settings/custom-theme")
+async def set_custom_theme(request: Request):
+    form = await request.form()
+    values = dict(form.items())
+    try:
+        saved = theme_module.set_custom_vars(values)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True, "custom_theme_vars": saved})
 
 
 @app.post("/api/scan")
@@ -188,6 +218,15 @@ def games_manage_page(request: Request):
         "series_rows": [dict(r) for r in series_rows],
     })
     return templates.TemplateResponse(request, "games_manage.html", ctx)
+
+
+@app.post("/api/games/create")
+def api_create_game(name: str = Form(...), system: str = Form("")):
+    try:
+        key = games_module.create_game(name, system=(system or "").strip() or "generic")
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True, "key": key})
 
 
 @app.post("/api/games/rename")
