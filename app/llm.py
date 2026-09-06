@@ -109,7 +109,18 @@ def _call_openai_compatible(config, system_prompt, user_prompt, max_tokens, time
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": user_prompt})
-    payload = {"model": config["model"], "messages": messages, "max_tokens": max_tokens}
+    payload = {
+        "model": config["model"],
+        "messages": messages,
+        "max_tokens": max_tokens,
+        # Some local models (e.g. Qwen3.5) default to an internal "thinking"
+        # pass that shares this same token budget and can eat the whole
+        # thing before ever writing a real answer, leaving content empty no
+        # matter how high max_tokens is. This is the standard (OpenAI-style)
+        # way to turn that off; servers that don't recognize the field
+        # ignore it harmlessly.
+        "reasoning_effort": "none",
+    }
     data = _request(f"{base_url}/chat/completions", headers, payload, timeout)
     try:
         return data["choices"][0]["message"]["content"].strip()
