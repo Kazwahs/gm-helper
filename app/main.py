@@ -829,7 +829,8 @@ def api_npc_generate(game: str = Form(None)):
     game_obj = _game_ctx(game)
     system = game_obj["system"] if game_obj else "generic"
     name = game_obj["name"] if game_obj else None
-    return JSONResponse(npc_generator.generate(system=system, game_name=name))
+    key = game_obj["key"] if game_obj else None
+    return JSONResponse(npc_generator.generate(game_key=key, system=system, game_name=name))
 
 
 @app.get("/tools/initiative")

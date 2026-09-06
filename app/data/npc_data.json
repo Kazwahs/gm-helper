@@ -1,33 +1,115 @@
 {
+  "_comment": "Random-NPC flavor and mechanics data, looked up in tiers: an exact game key (e.g. 'palladium_fantasy') beats a manual alias/fallback (e.g. savage_rifts borrowing rifts' flavor), which beats the game's 'system' hint from games.json, which beats 'generic'. This is what keeps a Rifts-only class like Juicer out of Palladium Fantasy while still giving every game in games.json something reasonable even without its own dedicated list.",
+
   "first_names": {
     "generic": ["Aric", "Bren", "Cassia", "Dorin", "Elara", "Fenwick", "Galla", "Hesper",
                 "Ivo", "Jessa", "Kelt", "Lyra", "Morran", "Nyssa", "Oren", "Petra",
                 "Quinlan", "Rowe", "Sable", "Torvin", "Ulla", "Varek", "Wren", "Xanthe",
                 "Yorick", "Zeva"],
-    "palladium": ["Rhulk", "Cassian", "Vex", "Marda", "Kestrel", "Grix", "Ondra", "Tarn",
-                  "Sable-Nine", "Corr", "Iron-Jaw Yuri", "Doc Renner", "Static", "Vashti",
-                  "Bram", "Whisper", "Skarlet", "Tycho", "Nadir", "Coyle"],
     "d20": ["Aldric", "Branwen", "Cedric", "Delphine", "Edmund", "Fiora", "Godric", "Helewise",
             "Ivor", "Josselin", "Kendrick", "Lianne", "Malric", "Nerissa", "Osric", "Perrin",
-            "Quenna", "Roderick", "Seraphine", "Thane"]
+            "Quenna", "Roderick", "Seraphine", "Thane"],
+    "palladium": ["Doran", "Kessa", "Marnix", "Yulia", "Bramwell", "Ilsa", "Coburn", "Reza",
+                  "Talia", "Dashiell", "Nadeen", "Orson", "Priska", "Wyatt", "Zula", "Beckham"],
+    "palladium_fantasy": ["Erlkin", "Bryndis", "Corwyn", "Maelis", "Thorne", "Aveline", "Godfrey",
+                           "Isolde", "Kellan", "Lucanne", "Osmund", "Perrin", "Rowena", "Silas",
+                           "Tamsin", "Wystan"],
+    "rifts": ["Rhulk", "Cassian", "Vex", "Marda", "Kestrel", "Grix", "Ondra", "Tarn",
+              "Sable-Nine", "Corr", "Iron-Jaw Yuri", "Doc Renner", "Static", "Vashti",
+              "Bram", "Whisper", "Skarlet", "Tycho", "Nadir", "Coyle"],
+    "heroes_unlimited": ["Marcus", "Jenna", "DeShawn", "Priya", "Connor", "Alexis", "Trevor",
+                          "Naomi", "Diego", "Kayla", "Malik", "Sasha", "Owen", "Renee",
+                          "Julian", "Farrah"],
+    "nightbane": ["Corvin", "Selene", "Damaris", "Rook", "Isolde", "Thane", "Marrow", "Vesper",
+                  "Ondine", "Cassius", "Wren", "Lilika"],
+    "robotech": ["Rick", "Lisa", "Max", "Miriya", "Dana", "Louie", "Vince", "Claudia",
+                 "Kazuki", "Minmei", "Jonas", "Aiko"],
+    "splicers": ["Kael", "Thessia", "Orrin", "Vantha", "Corvid", "Rasp", "Nyla", "Grix",
+                 "Ilvane", "Sorrel"],
+    "tmnt": ["Chomp", "Fang", "Grackle", "Talon", "Whiskers", "Bramble", "Snips", "Cinder",
+             "Gristle", "Marrow", "Slink", "Quill"],
+    "valley_pharaohs": ["Khaset", "Nefru", "Sobek", "Tia", "Ankhu", "Merit", "Ramose", "Senu",
+                         "Bakari", "Ipwet", "Khemsu", "Tarek"],
+    "cosmic_enforcers": ["Nova", "Zenith", "Vega", "Orion", "Lyric", "Quasar", "Draven",
+                          "Cassiopeia", "Halcyon", "Rigel"],
+    "blades_in_the_dark": ["Rosalind", "Barlow", "Kest", "Vane", "Thistle", "Corbin", "Mave",
+                            "Grimsby", "Ansel", "Fenwick", "Odalys", "Threnody"]
   },
+
   "surnames": ["Ashvale", "Blackwood", "Corrin", "Duskwatch", "Emberfall", "Fenmoor",
                "Grayveil", "Hollowmere", "Ironvale", "Jorrunsen", "Kestleridge", "Larkspur",
                "Marrow", "Nightshade", "Oakhurst", "Pravin", "Quicksilver", "Ravensbourne",
                "Stormcrow", "Thistledown", "Underhollow", "Vane", "Winterbourne", "Yew"],
+  "surnames_modern": ["Kade", "Reyes", "Osei", "Voss", "Callahan", "Petrova", "Okafor",
+                       "Lindqvist", "Duarte", "Marsh", "Whitlock", "Draven", "Cho", "Alvarez",
+                       "Bishara", "Finch"],
+  "no_surname_games": ["tmnt", "valley_pharaohs"],
+
   "roles": {
     "generic": ["shopkeeper", "guard captain", "informant", "wandering healer", "mercenary",
                 "cult leader", "bounty hunter", "innkeeper", "smuggler", "noble in disguise",
                 "retired adventurer", "corrupt official", "traveling scholar", "assassin",
                 "con artist", "local hero", "rival adventurer", "spy", "cartographer", "beggar with a secret"],
-    "palladium": ["Coalition grunt", "cyber-doc", "juicer on the edge", "wandering psychic",
-                  "black market fixer", "D-Bee refugee", "Techno-Wizard tinkerer", "bounty hunter",
-                  "Rogue Scholar", "Coalition propagandist", "wasteland preacher", "gunrunner",
-                  "mutant animal drifter", "Simvan rider", "corrupt CS officer", "faction spy"],
     "d20": ["tavern keeper", "town guard", "hedge wizard", "traveling cleric", "guild fixer",
             "noble's steward", "highwayman", "court alchemist", "mercenary captain", "grave robber",
-            "wandering bard", "temple acolyte", "smuggler captain", "royal spymaster", "hermit sage"]
+            "wandering bard", "temple acolyte", "smuggler captain", "royal spymaster", "hermit sage"],
+    "palladium": ["wandering mercenary", "local fixer", "scavenger scout", "hired muscle",
+                  "traveling medic", "small-time smuggler", "tribal elder", "wasteland preacher",
+                  "information broker", "disgraced soldier"],
+    "rifts": ["Coalition grunt", "cyber-doc", "Juicer on the edge", "wandering psychic",
+              "black market fixer", "D-Bee refugee", "Techno-Wizard tinkerer", "bounty hunter",
+              "Rogue Scholar", "Coalition propagandist", "gunrunner", "Simvan rider",
+              "corrupt CS officer", "faction spy", "Ley Line Walker", "Crazy strapped with cybernetics"],
+    "palladium_fantasy": ["knight errant", "wandering palladin", "long bowman", "forest ranger",
+                           "mercenary fighter", "cutpurse thief", "hedge wizard", "diabolist cultist",
+                           "summoner of minor horrors", "reclusive witch", "priest of the Old Ones",
+                           "druid of the grove", "alchemist peddler", "sergeant-at-arms",
+                           "minor noble on hard times", "dwarven miner far from home"],
+    "heroes_unlimited": ["street-level vigilante", "mutant with animal traits", "power armor test pilot",
+                          "psychic sensitive", "bionic enforcer", "mystic occultist", "gadgeteer inventor",
+                          "government metahuman agent", "supervillain's henchman", "reformed criminal with powers"],
+    "nightbane": ["Nightbane hiding their Morphus", "Cadre hunter tracking monsters",
+                  "unaware Nightbane still human-seeming", "Doppleganger infiltrator",
+                  "elemental warlock", "cultist of the Nightlord", "haunted psychic medium",
+                  "monster hunter for hire"],
+    "beyond_supernatural": ["occult investigator", "possessed local", "cult initiate", "monster hunter",
+                             "psychic sensitive", "government cover-up agent", "desperate exorcist",
+                             "skeptical journalist"],
+    "dead_reign": ["zombie outbreak survivor", "militia checkpoint guard", "supply caravan trader",
+                   "former soldier gone rogue", "cult leader preaching the outbreak's meaning",
+                   "quarantine zone smuggler", "doomsday prepper", "grieving parent searching for family"],
+    "recon": ["special forces operator", "local guide and informant", "black market arms dealer",
+              "enemy patrol soldier", "downed pilot", "village elder caught in the crossfire",
+              "war correspondent", "deserter hiding out"],
+    "robotech": ["Veritech pilot", "Zentraedi malcontent", "Robotech Defense Force officer",
+                 "civilian war refugee", "Protoculture researcher", "Southern Cross MAC trooper",
+                 "black market Protoculture dealer", "disillusioned war hero"],
+    "splicers": ["bio-armor Splicer", "resistance scout", "H.E.A.P. pilot", "Xytek corporate agent",
+                 "feral corrupted Splicer", "Ally-bonded host still adjusting",
+                 "captured lab subject", "scavenger of pre-collapse tech"],
+    "systems_failure": ["post-collapse survivor", "rogue synthetic passing as human",
+                         "scavenger-engineer", "warlord's enforcer", "EMP-fried tech specialist",
+                         "refugee convoy leader", "black market data courier"],
+    "mechanoids": ["human resistance fighter", "captured Mechanoid drone gone rogue",
+                   "Neanderthal tribesman", "robot hunter", "last survivor of a ruined city",
+                   "scavenger of Mechanoid wreckage"],
+    "tmnt": ["mutant animal vigilante", "ninja clan member", "Foot Soldier grunt",
+             "government agent investigating mutants", "alien bounty hunter",
+             "rogue scientist experimenting with mutagen", "biker gang enforcer",
+             "small-time crime boss"],
+    "valley_pharaohs": ["priest-mage of the temple", "tomb robber", "pharaoh's royal guard",
+                         "mercenary caravan guard", "desert nomad", "court scribe",
+                         "cursed wanderer", "embalmer with dark secrets"],
+    "cosmic_enforcers": ["cosmic-powered hero", "alien warlord in disguise",
+                          "energy being learning humanity", "galactic bounty hunter",
+                          "rogue Cosmic Enforcer", "planet-hopping smuggler"],
+    "manhunter": ["bounty hunter operative", "escaped convict", "corporate security agent",
+                  "wasteland fugitive", "informant playing both sides", "retired manhunter pulled back in"],
+    "blades_in_the_dark": ["cutpurse scoundrel", "Duskwall gang enforcer", "spirit-touched medium",
+                            "corrupt Bluecoat officer", "leviathan-hunter sailor", "Lampblacks thug",
+                            "whisper-cult initiate", "black market fence"]
   },
+
   "quirks": ["Never makes eye contact", "Constantly chewing something", "Speaks in third person",
              "Collects a strange trophy from every deal", "Flinches at loud noises",
              "Overly formal, even in casual settings", "Laughs at inappropriate moments",
@@ -42,5 +124,133 @@
                   "Keep a dangerous secret buried", "Survive one more season",
                   "Reclaim something stolen from them", "Break free of who they used to be"],
   "alignments": ["Lawful Good", "Neutral Good", "Chaotic Good", "Lawful Neutral", "True Neutral",
-                 "Chaotic Neutral", "Lawful Evil", "Neutral Evil", "Chaotic Evil"]
+                 "Chaotic Neutral", "Lawful Evil", "Neutral Evil", "Chaotic Evil"],
+
+  "weapons": {
+    "generic": [
+      {"name": "Shortsword", "damage": "1d6"}, {"name": "Club", "damage": "1d4"},
+      {"name": "Sling", "damage": "1d4"}, {"name": "Spear", "damage": "1d6"},
+      {"name": "Dagger", "damage": "1d4"}, {"name": "Hand Crossbow", "damage": "1d6"}
+    ],
+    "d20": [
+      {"name": "Longsword", "damage": "1d8"}, {"name": "Dagger", "damage": "1d4"},
+      {"name": "Shortbow", "damage": "1d6"}, {"name": "Warhammer", "damage": "1d8"},
+      {"name": "Greataxe", "damage": "1d12"}, {"name": "Mace", "damage": "1d6"},
+      {"name": "Rapier", "damage": "1d8"}, {"name": "Crossbow", "damage": "1d8"},
+      {"name": "Spear", "damage": "1d6"}, {"name": "Handaxe", "damage": "1d6"}
+    ],
+    "palladium": [
+      {"name": "Sidearm pistol", "damage": "2d6"}, {"name": "Combat knife", "damage": "1d6"},
+      {"name": "Shotgun", "damage": "4d6"}, {"name": "Machete", "damage": "1d8"},
+      {"name": "Hunting rifle", "damage": "3d6"}
+    ],
+    "rifts": [
+      {"name": "NG-P7 Laser Pulse Pistol", "damage": "3d6 MD"},
+      {"name": "Wilk's 457 Laser Rifle", "damage": "4d6 MD"},
+      {"name": "Vibro-Blade", "damage": "2d6 MD"},
+      {"name": "C-12 Laser Rifle", "damage": "5d6 MD"},
+      {"name": "Neural Mace (stun)", "damage": "2d4 MD"},
+      {"name": "Vibro-Knife", "damage": "1d6 MD"},
+      {"name": "JA-11 Pulse Rifle", "damage": "6d6 MD"}
+    ],
+    "palladium_fantasy": [
+      {"name": "Short Sword", "damage": "2d4"}, {"name": "Long Sword", "damage": "2d6"},
+      {"name": "Broadsword", "damage": "3d6"}, {"name": "War Hammer", "damage": "3d6"},
+      {"name": "Battle Axe", "damage": "2d6"}, {"name": "Halberd", "damage": "3d6"},
+      {"name": "Short Bow", "damage": "1d6"}, {"name": "Long Bow", "damage": "2d6"},
+      {"name": "Sling", "damage": "1d4"}, {"name": "Dagger", "damage": "1d4"},
+      {"name": "Mace", "damage": "2d4"}, {"name": "Quarterstaff", "damage": "1d6"}
+    ],
+    "heroes_unlimited": [
+      {"name": "9mm Pistol", "damage": "2d6"}, {"name": "Combat Shotgun", "damage": "4d6"},
+      {"name": "Aluminum Baseball Bat", "damage": "2d4"}, {"name": "Powered Gauntlet", "damage": "4d6"},
+      {"name": "Sniper Rifle", "damage": "5d6"}, {"name": "Prototype Energy Blade", "damage": "3d6"}
+    ],
+    "nightbane": [
+      {"name": "Claws (natural)", "damage": "2d6"}, {"name": "Silver Dagger", "damage": "2d4"},
+      {"name": "Pump Shotgun", "damage": "4d6"}, {"name": "Iron Chain", "damage": "1d6"},
+      {"name": "Nightbane Bio-Weapon", "damage": "3d6"}
+    ],
+    "beyond_supernatural": [
+      {"name": "Pump Shotgun", "damage": "4d6"}, {"name": "Silver Knife", "damage": "1d6"},
+      {"name": "Crowbar", "damage": "2d4"}, {"name": "Salt & Iron Rounds", "damage": "special vs. spirits"},
+      {"name": "Holy Water Vial", "damage": "special vs. undead"}
+    ],
+    "dead_reign": [
+      {"name": "Baseball Bat", "damage": "2d4"}, {"name": "Fire Axe", "damage": "2d6"},
+      {"name": "Machete", "damage": "2d4"}, {"name": "Hunting Rifle", "damage": "4d6"},
+      {"name": "Improvised Shiv", "damage": "1d4"}, {"name": "Crowbar", "damage": "2d4"}
+    ],
+    "recon": [
+      {"name": "M16 Rifle", "damage": "4d6"}, {"name": "Ka-Bar Knife", "damage": "1d6"},
+      {"name": "M60 Machine Gun", "damage": "6d6"}, {"name": ".45 Sidearm", "damage": "2d6"},
+      {"name": "Claymore Mine", "damage": "special/area"}
+    ],
+    "robotech": [
+      {"name": "EP-37 Pulse Laser Pistol", "damage": "2d6 MD"}, {"name": "Vibro-Blade", "damage": "1d6 MD"},
+      {"name": "GU-11 Gunpod (mecha-scale)", "damage": "3d6x10 MD"},
+      {"name": "Reflex Cannon (mecha-scale)", "damage": "1d4x100 MD"}
+    ],
+    "splicers": [
+      {"name": "Bio-Blade Claw", "damage": "3d6 MD"}, {"name": "Spore Rifle", "damage": "3d6 MD"},
+      {"name": "H.E.A.P. Fist", "damage": "4d6 MD"}, {"name": "Ally Stinger", "damage": "2d6 MD"}
+    ],
+    "systems_failure": [
+      {"name": "Pipe Wrench", "damage": "2d4"}, {"name": "Salvaged Assault Rifle", "damage": "3d6"},
+      {"name": "Molotov Cocktail", "damage": "3d6 fire"}, {"name": "Riot Shield Bash", "damage": "1d4"}
+    ],
+    "mechanoids": [
+      {"name": "Mechanoid Energy Blaster", "damage": "4d6 MD"}, {"name": "Steel Claw", "damage": "2d6 MD"},
+      {"name": "Salvaged Laser Rifle", "damage": "3d6 MD"}
+    ],
+    "tmnt": [
+      {"name": "Katana", "damage": "2d6"}, {"name": "Sai", "damage": "1d6"},
+      {"name": "Nunchaku", "damage": "1d6"}, {"name": "Bo Staff", "damage": "1d6"},
+      {"name": "Shuriken", "damage": "1d4"}
+    ],
+    "valley_pharaohs": [
+      {"name": "Khopesh", "damage": "2d6"}, {"name": "Spear", "damage": "1d6"},
+      {"name": "Sling", "damage": "1d4"}, {"name": "Battle Axe", "damage": "2d6"}
+    ],
+    "cosmic_enforcers": [
+      {"name": "Energy Blast (innate)", "damage": "4d6 MD"}, {"name": "Cosmic Force Blade", "damage": "3d6 MD"},
+      {"name": "Power Gauntlet", "damage": "3d6 MD"}
+    ],
+    "manhunter": [
+      {"name": "Stun Baton (non-lethal)", "damage": "2d4"}, {"name": "Bounty Rifle", "damage": "4d6"},
+      {"name": "Net Launcher", "damage": "special/entangle"}, {"name": "Sidearm Pistol", "damage": "2d6"}
+    ],
+    "blades_in_the_dark": [
+      {"name": "Heavy Pistol", "damage": "Moderate harm"}, {"name": "Sword", "damage": "Moderate harm"},
+      {"name": "Knife", "damage": "Lesser harm"}, {"name": "Brawling", "damage": "Lesser harm"},
+      {"name": "Cudgel", "damage": "Lesser harm"}, {"name": "Sawn-off Shotgun", "damage": "Severe harm, close range only"}
+    ],
+    "forged in the dark": [
+      {"name": "Heavy Pistol", "damage": "Moderate harm"}, {"name": "Sword", "damage": "Moderate harm"},
+      {"name": "Knife", "damage": "Lesser harm"}, {"name": "Brawling", "damage": "Lesser harm"}
+    ],
+    "savage_worlds": [
+      {"name": "Fighting Knife", "damage": "Str+d4"}, {"name": "Sword", "damage": "Str+d6"},
+      {"name": "Pistol", "damage": "2d6"}, {"name": "Rifle", "damage": "2d8"},
+      {"name": "Shotgun", "damage": "3d6"}
+    ]
+  },
+
+  "skills": {
+    "generic": ["Notice", "Persuasion", "Stealth", "Survival", "Intimidation", "Streetwise", "Athletics", "Insight"],
+    "d20": ["Perception", "Stealth", "Persuasion", "Athletics", "Arcana", "Survival", "Insight",
+            "Deception", "Investigation", "Intimidation", "Sleight of Hand", "Religion"],
+    "palladium": ["Streetwise", "Prowl", "Detect Ambush", "Palming", "Land Navigation", "Climbing",
+                  "Swimming", "Wilderness Survival", "Barter", "Intelligence"],
+    "palladium_fantasy": ["W.P. Sword", "W.P. Archery", "Streetwise", "Land Navigation", "Climbing",
+                           "Swimming", "Wilderness Survival", "Heraldry", "Horsemanship",
+                           "Lore: Demons & Monsters", "Palming", "Detect Ambush"],
+    "rifts": ["Computer Operation", "Pilot: Hovercraft", "W.P. Energy Rifle", "W.P. Energy Pistol",
+              "Robot Mechanics", "Demolitions", "Radio: Basic", "Streetwise", "Prowl",
+              "Detect Ambush", "Intelligence", "Basic Mechanics"],
+    "savage_worlds": ["Fighting", "Shooting", "Notice", "Stealth", "Persuasion", "Athletics",
+                       "Survival", "Intimidation", "Streetwise"],
+    "forged in the dark": ["Skirmish", "Prowl", "Finesse", "Wreck", "Study", "Survey", "Tinker",
+                            "Attune", "Command", "Consort", "Sway", "Insight"]
+  }
 }
