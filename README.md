@@ -1,5 +1,7 @@
 # GM Helper
 
+![GM Screen with session notes and the AI recap button](docs/screenshot-gm-screen.jpg)
+
 A small self-hosted app for running tabletop RPG sessions: pick a game, search
 your own PDF library full-text, open any book straight in your browser's PDF
 viewer (search results jump right to the matching page), bookmark pages into
@@ -7,7 +9,10 @@ your own named collections with notes for session prep, flesh out a full
 **Campaign Planner** for each game, generate dungeons, buildings, cities,
 caves, and wilderness/world maps on the **Maps** tab, and use a dice roller,
 NPC generator, initiative tracker, and encounter/loot generator while you
-play. The auto-detected Series-to-game grouping is just a starting guess - use
+play. Point it at a local or hosted LLM in Settings and it also picks up a
+handful of AI-assisted tools - session recaps, NPC dialogue, and one-shot
+adventure generation - see **AI features** below. The auto-detected
+Series-to-game grouping is just a starting guess - use
 **Manage Games** in the nav to rename a game, merge one game entirely into
 another, or move a single Series folder to a different game, all without
 touching `games.json` by hand. When a whole Series is itself a mix (a
@@ -188,6 +193,55 @@ won't be selectable or draggable, though **Add label** still works on it
 just won't gain per-shape editing retroactively). Any map generated from
 here on out is fully editable.
 
+## AI features
+
+Everything in this section is optional and off by default - none of it
+shows up anywhere in the UI until you connect a working LLM endpoint in
+**Settings**. GM Helper speaks two wire formats: an OpenAI-compatible
+`/v1/chat/completions` endpoint (this covers Ollama, LM Studio, OpenAI
+itself, OpenRouter, and most other local or hosted servers) or Anthropic's
+native Messages API, picked by one provider setting. This makes it
+straightforward to start with a small model on your own hardware and move
+to a different endpoint later without any code changes.
+
+Whichever provider you pick, click **Test Connection** after saving - a
+feature is only offered once a real request has actually succeeded against
+the *current* settings. Changing anything and saving again (even back to
+identical-looking values) clears that verified state, so a stale or
+half-configured endpoint can never silently power a feature; you'll always
+need to re-test after a change.
+
+Running your own model locally is entirely possible on modest hardware -
+an Intel Arc GPU with 8GB of VRAM, for example, comfortably runs a model
+like Qwen3.5-9B through Ollama's Vulkan backend, which needs no vendor-
+specific toolkit or driver stack beyond the GPU itself being visible to
+the container (`--device /dev/dri` is normally all it takes). See the
+provider dropdown's inline hints in Settings for endpoint URL conventions.
+
+Once verified, three tools light up:
+
+- **Session recap** (GM Screen) - the "Summarize last session" button reads
+  that game's session notes and writes a short "Previously on..." recap to
+  read aloud to the table before play resumes. Needs at least a few words
+  of session notes saved first.
+- **NPC dialogue** (NPC Generator) - after rolling up an NPC, "Generate
+  dialogue" writes four short in-character lines based on that NPC's role,
+  quirk, and motivation - useful for finding an NPC's voice on the fly
+  rather than improvising cold.
+- **One-Shot Generator** (its own page, in the nav once a game is picked) -
+  give it a party size, level/tier, and an optional tone or theme, and it
+  writes a self-contained one-shot seed: title, hook, 2-4 key NPCs, 3-5
+  scenes, a climax, and an optional twist, sized for a single 3-4 hour
+  session and grounded in the conventions of whatever game system you're
+  running.
+
+A note on "thinking" models: some local models (Qwen3.5 among them) run an
+internal reasoning pass before writing their actual answer, and that pass
+shares the same response budget as the real output. GM Helper asks
+OpenAI-compatible endpoints to skip that pass (`reasoning_effort: "none"`)
+so responses come back promptly; a server that doesn't recognize that
+field just ignores it.
+
 ## Project layout
 
 ```
@@ -198,6 +252,8 @@ app/
   campaigns.py          campaign planner (threads, cast, factions, locations, sessions, materials)
   bookmarks.py           bookmark collections + notes, shared with the campaign planner
   maps_store.py          saved-map CRUD + campaign attachment
+  llm.py                 optional AI client (OpenAI-compatible / Anthropic) + the
+                          verified-connection gate every AI feature checks
   maps/
     generator.py          dispatches to the right generator by map type
     rooms.py               dungeon / building interior (subdivision + corridor MST)

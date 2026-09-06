@@ -29,6 +29,12 @@
       </div>
     </div>
   </div>
+  {% if ai_enabled %}
+    <div class="row" id="npc-dialogue-row" style="margin-top:1rem;" hidden>
+      <button type="button" id="npc-dialogue-btn" class="secondary">&#128483; Generate dialogue</button>
+    </div>
+    <ul id="npc-dialogue-list" class="boxed-text" style="display:none; list-style:none; padding-left:0;"></ul>
+  {% endif %}
   {% if campaigns %}
     <div class="row" id="save-to-campaign-row" style="margin-top:1rem;" hidden>
       <select id="save-campaign-select">
@@ -89,7 +95,45 @@ document.getElementById('gen-btn').addEventListener('click', async () => {
 
   const saveRow = document.getElementById('save-to-campaign-row');
   if (saveRow) saveRow.hidden = false;
+
+  const dialogueRow = document.getElementById('npc-dialogue-row');
+  if (dialogueRow) dialogueRow.hidden = false;
+  const dialogueList = document.getElementById('npc-dialogue-list');
+  if (dialogueList) dialogueList.style.display = 'none';
 });
+
+const dialogueBtn = document.getElementById('npc-dialogue-btn');
+if (dialogueBtn) {
+  dialogueBtn.addEventListener('click', async () => {
+    if (!lastNpc) return;
+    const list = document.getElementById('npc-dialogue-list');
+    dialogueBtn.disabled = true;
+    const original = dialogueBtn.textContent;
+    dialogueBtn.textContent = 'Thinking...';
+    try {
+      const res = await postForm('/api/npc/dialogue', {
+        name: lastNpc.name,
+        role: lastNpc.role,
+        quirk: lastNpc.quirk,
+        motivation: lastNpc.motivation,
+        alignment: lastNpc.alignment,
+        game: gameKey || '_global',
+      });
+      list.innerHTML = '';
+      res.lines.forEach((line) => {
+        list.appendChild(el('li', {style: 'margin-bottom:0.5rem;'}, `"${line}"`));
+      });
+      list.style.display = 'block';
+    } catch (err) {
+      list.innerHTML = '';
+      list.appendChild(el('li', {}, 'Could not generate dialogue: ' + err.message));
+      list.style.display = 'block';
+    } finally {
+      dialogueBtn.disabled = false;
+      dialogueBtn.textContent = original;
+    }
+  });
+}
 
 const saveToCampaignBtn = document.getElementById('save-to-campaign-btn');
 if (saveToCampaignBtn) {

@@ -297,6 +297,15 @@ tbody tr:hover { background: var(--bg-panel-2); }
   white-space: pre-wrap;
 }
 
+/* Modifier for longer AI-generated structured text (e.g. a one-shot seed) -
+   still boxed and set apart, but upright rather than italic since it's
+   reference content, not read-aloud prose, and rendered in a <pre> so it
+   needs the body's own font rather than a monospace one. */
+.boxed-text.plain {
+  font-style: normal;
+  font-family: inherit;
+}
+
 /* ---- graphical dice roller ---- */
 .dice-tray { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 

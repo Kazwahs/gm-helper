@@ -165,3 +165,33 @@ def test_generate_includes_game_and_system_passthrough(db):
 def test_generate_defaults_system_to_generic_when_falsy(db):
     result = npc.generate(game_key=None, system=None, game_name=None)
     assert result["system"] == "generic"
+
+
+class TestParseDialogueLines:
+    """parse_dialogue_lines() cleans up an LLM's raw dialogue reply - models
+    add numbering/bullets/quotes even when told not to, so this strips that
+    decoration rather than trusting the model's formatting."""
+
+    def test_splits_on_newlines_and_strips_whitespace(self):
+        raw = "  Hello there.  \n\n  Get off my land!  "
+        assert npc.parse_dialogue_lines(raw) == ["Hello there.", "Get off my land!"]
+
+    def test_strips_numbered_list_markers(self):
+        raw = "1. First line\n2) Second line\n3. Third line"
+        assert npc.parse_dialogue_lines(raw) == ["First line", "Second line", "Third line"]
+
+    def test_strips_bullet_markers(self):
+        raw = "- First line\n* Second line\n• Third line"
+        assert npc.parse_dialogue_lines(raw) == ["First line", "Second line", "Third line"]
+
+    def test_strips_wrapping_quotes(self):
+        raw = '"Get out of my sight."\n“Never again.”'
+        assert npc.parse_dialogue_lines(raw) == ["Get out of my sight.", "Never again."]
+
+    def test_drops_blank_lines(self):
+        raw = "First line\n\n\n   \nSecond line"
+        assert npc.parse_dialogue_lines(raw) == ["First line", "Second line"]
+
+    def test_empty_input_returns_empty_list(self):
+        assert npc.parse_dialogue_lines("") == []
+        assert npc.parse_dialogue_lines("   \n  \n") == []

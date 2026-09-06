@@ -881,6 +881,55 @@ def api_screen_recap(game: str = Form("_global")):
     return JSONResponse({"recap": recap})
 
 
+@app.get("/tools/oneshot")
+def oneshot_page(request: Request, game: str = None):
+    ctx = _base_ctx(request)
+    ctx["game"] = _game_ctx(game)
+    ctx["game_key"] = game or "_global"
+    return templates.TemplateResponse(request, "tools_oneshot.html", ctx)
+
+
+@app.post("/api/oneshot/generate")
+def api_oneshot_generate(game: str = Form("_global"), party_size: int = Form(4),
+                          party_level: str = Form(""), tone: str = Form("")):
+    if not llm_module.is_enabled():
+        return JSONResponse(
+            {"error": "AI features aren't enabled yet - set up and test a connection in Settings."},
+            status_code=400,
+        )
+    game_obj = _game_ctx(game if game != "_global" else None)
+    game_name = game_obj["name"] if game_obj else "a tabletop RPG"
+    system_prompt = (
+        "You are an experienced tabletop RPG Game Master writing a complete, ready-to-run "
+        "one-shot adventure seed. Reply in exactly this plain-text layout - no markdown, no "
+        "asterisks, no headers other than the labels shown:\n\n"
+        "TITLE: <a punchy adventure title>\n\n"
+        "HOOK: <one paragraph on how the party gets pulled in>\n\n"
+        "KEY NPCS:\n- <name> - <one line: role and what they want>\n"
+        "(2 to 4 NPCs, one per line)\n\n"
+        "SCENES:\n1. <scene>\n2. <scene>\n3. <scene>\n"
+        "(3 to 5 scenes/beats in order)\n\n"
+        "CLIMAX: <one paragraph describing the final confrontation or challenge>\n\n"
+        "TWIST: <one line - an optional complication or reveal>\n\n"
+        "Keep it genuinely runnable in a single 3-4 hour session, grounded in the conventions of "
+        "the specified game system. Describe narrative content only - do not invent rules "
+        "mechanics, stat blocks, or dice math."
+    )
+    party_desc = f"{party_size} players"
+    if party_level.strip():
+        party_desc += f", {party_level.strip()}"
+    user_prompt = f"Game: {game_name}\nParty: {party_desc}"
+    if tone.strip():
+        user_prompt += f"\nDesired tone/theme: {tone.strip()}"
+    try:
+        oneshot = llm_module.generate(system_prompt, user_prompt, max_tokens=2000)
+    except llm_module.LLMError as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+    if not oneshot.strip():
+        return JSONResponse({"error": "The model didn't return any text. Try again."}, status_code=502)
+    return JSONResponse({"oneshot": oneshot})
+
+
 @app.get("/tools/npc")
 def npc_page(request: Request, game: str = None):
     ctx = _base_ctx(request)
@@ -896,6 +945,36 @@ def api_npc_generate(game: str = Form(None)):
     name = game_obj["name"] if game_obj else None
     key = game_obj["key"] if game_obj else None
     return JSONResponse(npc_generator.generate(game_key=key, system=system, game_name=name))
+
+
+@app.post("/api/npc/dialogue")
+def api_npc_dialogue(name: str = Form(...), role: str = Form(""), quirk: str = Form(""),
+                      motivation: str = Form(""), alignment: str = Form(""), game: str = Form(None)):
+    if not llm_module.is_enabled():
+        return JSONResponse(
+            {"error": "AI features aren't enabled yet - set up and test a connection in Settings."},
+            status_code=400,
+        )
+    game_obj = _game_ctx(game if game != "_global" else None)
+    game_name = game_obj["name"] if game_obj else "a tabletop RPG"
+    system_prompt = (
+        "You are helping a Game Master voice a tabletop RPG NPC at the table. Write exactly 4 "
+        "short, distinct lines of in-character dialogue for the NPC described below - just what "
+        "they would actually say out loud. One line per line, no numbering, no quotation marks, "
+        "no stage directions or narration, no preamble - only the spoken lines themselves."
+    )
+    user_prompt = (
+        f"Game: {game_name}\nName: {name}\nRole: {role}\nAlignment: {alignment}\n"
+        f"Quirk: {quirk}\nMotivation: {motivation}"
+    )
+    try:
+        reply = llm_module.generate(system_prompt, user_prompt, max_tokens=500)
+    except llm_module.LLMError as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+    lines = npc_generator.parse_dialogue_lines(reply)
+    if not lines:
+        return JSONResponse({"error": "The model didn't return any usable dialogue. Try again."}, status_code=502)
+    return JSONResponse({"lines": lines})
 
 
 @app.get("/tools/initiative")

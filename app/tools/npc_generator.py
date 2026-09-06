@@ -18,6 +18,7 @@ harm levels instead.
 """
 import json
 import random
+import re
 
 from .. import config
 
@@ -249,3 +250,24 @@ def generate(game_key=None, system="generic", game_name=None):
         "skills": skills,
         "weapons": carried,
     }
+
+
+def parse_dialogue_lines(raw_text):
+    """Turns the LLM's raw dialogue reply into a clean list of lines for
+    display. Models tend to add numbering, bullet dashes, or wrapping
+    quotation marks even when told not to - strip that decoration rather
+    than trusting the model to format it exactly right, and drop any blank
+    lines."""
+    lines = []
+    for line in raw_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # Strip leading list markers like "1.", "-", "*", "•"
+        line = re.sub(r"^[\-\*•]\s*|^\d+[\.\)]\s*", "", line).strip()
+        # Strip one layer of wrapping quotes, if present
+        if len(line) >= 2 and line[0] in "\"'“" and line[-1] in "\"'”":
+            line = line[1:-1].strip()
+        if line:
+            lines.append(line)
+    return lines

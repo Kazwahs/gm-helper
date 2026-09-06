@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - One-Shot Generator{% endblock %}
+{% block content %}
+<h1>One-Shot Generator{% if game %} - {{ game.name }}{% endif %}</h1>
+<p class="muted">Generates a self-contained one-shot seed: hook, key NPCs, scenes, and a climax,
+  sized for a single 3-4 hour session.</p>
+
+{% if not ai_enabled %}
+  <div class="card">
+    <p class="muted">This tool needs a working AI connection. Head to
+      <a href="/settings">Settings</a> to set one up and test it before using this page.</p>
+  </div>
+{% else %}
+  <div class="card">
+    <div class="row" style="gap:1.5rem; flex-wrap:wrap; align-items:flex-end;">
+      <label class="field-label">Party size
+        <input type="number" id="party-size" value="4" min="1" max="12" style="width:5rem; display:block;">
+      </label>
+      <label class="field-label">Party level/tier
+        <input type="text" id="party-level" placeholder="e.g. Level 3, Seasoned, 50 M.D.C." style="display:block;">
+      </label>
+      <label class="field-label">Tone/theme (optional)
+        <input type="text" id="oneshot-tone" placeholder="e.g. heist, horror, political intrigue" style="display:block;">
+      </label>
+    </div>
+    <div class="row" style="margin-top:1rem;">
+      <button type="button" id="oneshot-btn">Generate one-shot</button>
+    </div>
+    <pre id="oneshot-out" class="boxed-text plain" style="display:none;"></pre>
+  </div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+const gameKey = {{ (game.key if game else None) | tojson }};
+const oneshotBtn = document.getElementById('oneshot-btn');
+if (oneshotBtn) {
+  oneshotBtn.addEventListener('click', async () => {
+    const out = document.getElementById('oneshot-out');
+    oneshotBtn.disabled = true;
+    const original = oneshotBtn.textContent;
+    oneshotBtn.textContent = 'Generating...';
+    out.style.display = 'block';
+    out.textContent = 'Working on it...';
+    try {
+      const res = await postForm('/api/oneshot/generate', {
+        game: gameKey || '_global',
+        party_size: document.getElementById('party-size').value,
+        party_level: document.getElementById('party-level').value,
+        tone: document.getElementById('oneshot-tone').value,
+      });
+      out.textContent = res.oneshot;
+    } catch (err) {
+      out.textContent = 'Could not generate a one-shot: ' + err.message;
+    } finally {
+      oneshotBtn.disabled = false;
+      oneshotBtn.textContent = original;
+    }
+  });
+}
+</script>
+{% endblock %}
