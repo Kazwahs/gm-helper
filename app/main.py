@@ -865,9 +865,19 @@ def api_screen_recap(game: str = Form("_global")):
     )
     user_prompt = f"Game: {game_name}\n\nGM's session notes:\n{notes}"
     try:
-        recap = llm_module.generate(system_prompt, user_prompt, max_tokens=400)
+        # Generous budget on purpose: "thinking" models (e.g. Qwen3.5) spend
+        # part of this same token budget on an internal reasoning pass before
+        # writing the actual recap, so a tight limit can get cut off before
+        # any real text comes back at all.
+        recap = llm_module.generate(system_prompt, user_prompt, max_tokens=1600)
     except llm_module.LLMError as e:
         return JSONResponse({"error": str(e)}, status_code=502)
+    if not recap.strip():
+        return JSONResponse(
+            {"error": "The model didn't return any text - if it's a 'thinking' model, it may have used up its "
+                       "whole response budget reasoning internally. Try again, or try a shorter notes entry."},
+            status_code=502,
+        )
     return JSONResponse({"recap": recap})
 
 

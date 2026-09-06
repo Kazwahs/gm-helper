@@ -169,7 +169,7 @@ def test_connection():
     return {"ok": True, "reply": reply}
 
 
-def generate(system_prompt, user_prompt, max_tokens=700):
+def generate(system_prompt, user_prompt, max_tokens=1600):
     """For real feature use, once a connection has been verified. Callers
     (routes) should still gate on is_enabled() before even offering the
     feature - this is a defense-in-depth check, not the primary gate."""
