@@ -233,6 +233,54 @@ th { color: var(--text-dim); font-weight: normal; font-size: 0.85rem; text-trans
 .die-d20 { clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
 .die-d100 { border-radius: 10px; }
 
+/* Per-die count stepper (roll N of a given die, e.g. 3d6) */
+.die-unit { position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.35rem; }
+.die-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 0.65rem;
+  font-weight: bold;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+  pointer-events: none;
+}
+.die-count-badge[hidden] { display: none; }
+.die-stepper { display: flex; align-items: center; gap: 0.25rem; }
+.die-step {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.die-step:hover { filter: brightness(1.2); }
+.die-count-input {
+  width: 32px;
+  text-align: center;
+  padding: 2px 0;
+  font-size: 0.8rem;
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  -moz-appearance: textfield;
+}
+.die-count-input::-webkit-outer-spin-button,
+.die-count-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
 .die.rolling { animation: die-tumble 0.55s ease-in-out infinite; }
 .die.settled { animation: die-settle 0.25s ease-out; }
 .die.crit-good { box-shadow: 0 0 0 3px var(--good); }
@@ -371,3 +419,53 @@ form.inline { display: inline; }
   border: 2px solid var(--border);
 }
 .color-swatches button.selected-swatch { border-color: #ffcf5c; }
+
+/* ---- GM Screen ---- */
+.screen-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+.screen-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.screen-card-head { display: flex; align-items: center; gap: 0.4rem; }
+.screen-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: bold;
+  font-size: 1rem;
+  border: none;
+  background: transparent;
+  padding: 0.2rem 0;
+}
+.screen-card-title:focus, .screen-card-title:hover { background: var(--bg); border-radius: 4px; }
+.screen-card-actions { display: flex; gap: 0.25rem; flex-shrink: 0; }
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel-2);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.screen-card-body {
+  min-height: 8rem;
+  font-size: 0.9rem;
+  background: var(--bg);
+}

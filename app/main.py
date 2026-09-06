@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 from . import bookmarks as bookmarks_module
 from . import campaigns as campaigns_module
 from . import config, database
+from . import gm_screen
 from . import maps_store
 from .library import games as games_module
 from .library import scanner, indexer, search as search_module
@@ -727,6 +728,53 @@ def api_dice_roll(expr: str = Form(...)):
         return JSONResponse(dice_tool.roll(expr))
     except dice_tool.DiceError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.get("/screen")
+def gm_screen_page(request: Request, game: str = None):
+    ctx = _base_ctx(request)
+    ctx["game"] = _game_ctx(game)
+    ctx["game_key"] = game or "_global"
+    ctx["cards"] = gm_screen.list_cards(game)
+    ctx["notes"] = gm_screen.get_notes(game)
+    return templates.TemplateResponse(request, "gm_screen.html", ctx)
+
+
+@app.post("/api/screen/cards")
+def api_screen_create_card(game: str = Form("_global"), title: str = Form(...), body: str = Form("")):
+    try:
+        return JSONResponse(gm_screen.create_card(game, title, body))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.post("/api/screen/cards/{card_id}")
+def api_screen_update_card(card_id: int, field: str = Form(...), value: str = Form("")):
+    try:
+        return JSONResponse(gm_screen.update_card_field(card_id, field, value))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@app.post("/api/screen/cards/{card_id}/move")
+def api_screen_move_card(card_id: int, direction: str = Form(...)):
+    try:
+        gm_screen.move_card(card_id, direction)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/screen/cards/{card_id}/delete")
+def api_screen_delete_card(card_id: int):
+    gm_screen.delete_card(card_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/screen/notes")
+def api_screen_save_notes(game: str = Form("_global"), body: str = Form("")):
+    gm_screen.set_notes(game, body)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/tools/npc")

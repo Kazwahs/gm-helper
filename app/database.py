@@ -174,6 +174,27 @@ CREATE TABLE IF NOT EXISTS maps (
 );
 CREATE INDEX IF NOT EXISTS idx_maps_game_key ON maps(game_key);
 CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
+
+-- GM Screen: a per-game (or "_global") board of quick-reference cards a GM
+-- keeps open during play, plus one freeform scratchpad for session-specific
+-- reminders. Cards start seeded with generic starter content the first time
+-- a game's screen is opened (see gm_screen.DEFAULT_CARDS) but are fully
+-- editable/deletable/addable, since exactly which rules matter varies a lot
+-- by game system.
+CREATE TABLE IF NOT EXISTS gm_screen_cards (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_key    TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    body        TEXT,
+    position    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_gm_screen_cards_game_key ON gm_screen_cards(game_key);
+
+CREATE TABLE IF NOT EXISTS gm_screen_notes (
+    game_key TEXT PRIMARY KEY,
+    body     TEXT
+);
 """
 
 

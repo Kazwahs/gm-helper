@@ -3,21 +3,13 @@
 {% block content %}
 <h1>Dice Roller{% if game %} - {{ game.name }}{% endif %}</h1>
 <div class="card">
-  <label class="field-label">Roll a die</label>
-  <div class="dice-tray" id="dice-tray">
-    <button type="button" class="die die-btn die-d4" data-sides="4" style="--die-color:#c48fa0;">d4</button>
-    <button type="button" class="die die-btn die-d6" data-sides="6" style="--die-color:#8fa9c4;">d6</button>
-    <button type="button" class="die die-btn die-d8" data-sides="8" style="--die-color:#a9c48f;">d8</button>
-    <button type="button" class="die die-btn die-d10" data-sides="10" style="--die-color:#c9a66b;">d10</button>
-    <button type="button" class="die die-btn die-d12" data-sides="12" style="--die-color:#b08fc4;">d12</button>
-    <button type="button" class="die die-btn die-d20" data-sides="20" style="--die-color:#c0863f;">d20</button>
-    <button type="button" class="die die-btn die-d100" data-sides="100" style="--die-color:#8fc4bb;">d%</button>
-  </div>
+  <label class="field-label">Roll dice</label>
+  <p class="muted" style="margin-top:-0.4rem;">
+    Use the − / + under each die (or type directly into the box) to set how
+    many to roll - e.g. set d6 to 3 for 3d6 damage - then tap the die.
+  </p>
+  <div class="dice-tray" id="dice-tray"></div>
   <div class="row" style="margin-top:0.75rem;">
-    <div class="field-group" style="margin-bottom:0;">
-      <label class="field-label">Count</label>
-      <input type="number" id="quick-count" value="1" min="1" max="100" style="width:70px;">
-    </div>
     <div class="field-group" style="margin-bottom:0;">
       <label class="field-label">Modifier</label>
       <input type="number" id="quick-modifier" value="0" style="width:70px;">
@@ -146,16 +138,93 @@ async function rollExpression(expr) {
   }, 750);
 }
 
-document.querySelectorAll(".die-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const sides = parseInt(btn.dataset.sides, 10);
-    const count = Math.max(1, parseInt(document.getElementById("quick-count").value || "1", 10));
-    const mod = parseInt(document.getElementById("quick-modifier").value || "0", 10);
-    let expr = `${count}d${sides}`;
-    if (mod) expr += (mod >= 0 ? "+" : "") + mod;
-    rollExpression(expr);
+// Builds the tray from scratch so every die - not just some of them - gets
+// its own independent, persistent "how many to roll" stepper (e.g. dial the
+// d6 up to 3 for "3d6 damage" without touching any of the other dice).
+const DICE_DEFS = [
+  {sides: 4, label: "d4"},
+  {sides: 6, label: "d6"},
+  {sides: 8, label: "d8"},
+  {sides: 10, label: "d10"},
+  {sides: 12, label: "d12"},
+  {sides: 20, label: "d20"},
+  {sides: 100, label: "d%"},
+];
+
+function clampCount(n) {
+  n = parseInt(n, 10);
+  if (!Number.isFinite(n)) n = 1;
+  return Math.max(1, Math.min(100, n));
+}
+
+function buildDiceTray() {
+  const tray = document.getElementById("dice-tray");
+  DICE_DEFS.forEach(({sides, label}) => {
+    const unit = document.createElement("div");
+    unit.className = "die-unit";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `die die-btn ${dieShapeClass(sides)}`;
+    btn.style.setProperty("--die-color", DIE_COLORS[sides] || "#8fa9c4");
+    btn.dataset.sides = sides;
+    btn.textContent = label;
+
+    const badge = document.createElement("span");
+    badge.className = "die-count-badge";
+    badge.textContent = "×1";
+    badge.hidden = true;
+
+    const stepper = document.createElement("div");
+    stepper.className = "die-stepper";
+    const minus = document.createElement("button");
+    minus.type = "button";
+    minus.className = "die-step";
+    minus.textContent = "−";
+    minus.setAttribute("aria-label", `Roll fewer ${label}`);
+    const input = document.createElement("input");
+    input.type = "number";
+    input.className = "die-count-input";
+    input.value = "1";
+    input.min = "1";
+    input.max = "100";
+    input.inputMode = "numeric";
+    input.setAttribute("aria-label", `Number of ${label} to roll`);
+    const plus = document.createElement("button");
+    plus.type = "button";
+    plus.className = "die-step";
+    plus.textContent = "+";
+    plus.setAttribute("aria-label", `Roll more ${label}`);
+
+    function setCount(n) {
+      n = clampCount(n);
+      input.value = n;
+      badge.textContent = "×" + n;
+      badge.hidden = n <= 1;
+    }
+
+    minus.addEventListener("click", () => setCount(clampCount(input.value) - 1));
+    plus.addEventListener("click", () => setCount(clampCount(input.value) + 1));
+    input.addEventListener("change", () => setCount(input.value));
+
+    btn.addEventListener("click", () => {
+      const count = clampCount(input.value);
+      const mod = parseInt(document.getElementById("quick-modifier").value || "0", 10);
+      let expr = `${count}d${sides}`;
+      if (mod) expr += (mod >= 0 ? "+" : "") + mod;
+      rollExpression(expr);
+    });
+
+    stepper.appendChild(minus);
+    stepper.appendChild(input);
+    stepper.appendChild(plus);
+    unit.appendChild(btn);
+    unit.appendChild(badge);
+    unit.appendChild(stepper);
+    tray.appendChild(unit);
   });
-});
+}
+buildDiceTray();
 
 document.getElementById("adv-btn").addEventListener("click", () => rollExpression("2d20kh1"));
 document.getElementById("dis-btn").addEventListener("click", () => rollExpression("2d20kl1"));

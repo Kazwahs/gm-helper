@@ -14,6 +14,7 @@
       {% set gk = game_key or (game.key if game else None) %}
       <a href="/maps{% if gk %}?game={{ gk }}{% endif %}">Maps</a>
       <a href="/tools/dice{% if gk %}?game={{ gk }}{% endif %}">Dice</a>
+      <a href="/screen{% if gk %}?game={{ gk }}{% endif %}">GM Screen</a>
       {% if gk %}
         <a href="/library?game={{ gk }}">Library</a>
         <a href="/campaigns?game={{ gk }}">Campaigns</a>

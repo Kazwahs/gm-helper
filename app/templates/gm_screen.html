@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - GM Screen{% endblock %}
+{% block content %}
+<h1>GM Screen{% if game %} - {{ game.name }}{% endif %}</h1>
+<p class="muted">
+  Quick references and session notes to keep open while you run the table.
+  {% if not game %}Pick a game from the home page for system-specific cards.{% endif %}
+</p>
+
+<div class="toolbar">
+  <a href="/tools/dice{% if game %}?game={{ game.key }}{% endif %}">Dice Roller</a>
+  <a href="/tools/initiative{% if game %}?game={{ game.key }}{% endif %}">Initiative Tracker</a>
+  <a href="/tools/npc{% if game %}?game={{ game.key }}{% endif %}">NPC Generator</a>
+  <a href="/tools/encounters{% if game %}?game={{ game.key }}{% endif %}">Encounter Generator</a>
+  <a href="/bookmarks">Bookmarks</a>
+</div>
+
+<div class="card">
+  <label class="field-label">Session notes</label>
+  <textarea id="session-notes" rows="4"
+    placeholder="Where we left off, reminders for tonight, anything campaign-specific...">{{ notes }}</textarea>
+</div>
+
+<div class="row" style="justify-content: space-between; align-items: center; margin-top: 1rem;">
+  <h3 style="margin:0;">Reference cards</h3>
+  <button type="button" id="add-card-btn" class="secondary">+ Add card</button>
+</div>
+
+<div class="screen-cards-grid" id="cards-grid">
+  {% for card in cards %}
+    <div class="screen-card" data-id="{{ card.id }}">
+      <div class="screen-card-head">
+        <input type="text" class="screen-card-title" data-field="title" value="{{ card.title }}">
+        <div class="screen-card-actions">
+          <button type="button" class="icon-btn move-up-btn" title="Move up">&uarr;</button>
+          <button type="button" class="icon-btn move-down-btn" title="Move down">&darr;</button>
+          <button type="button" class="icon-btn delete-card-btn" title="Delete card">&times;</button>
+        </div>
+      </div>
+      <textarea class="screen-card-body" data-field="body" rows="8">{{ card.body }}</textarea>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const gameKey = {{ (game_key or "_global") | tojson }};
+
+document.getElementById('session-notes').addEventListener('change', async (e) => {
+  try {
+    await postForm('/api/screen/notes', {game: gameKey, body: e.target.value});
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+function wireCard(cardEl) {
+  const id = cardEl.dataset.id;
+  cardEl.querySelectorAll('[data-field]').forEach((field) => {
+    field.addEventListener('change', async () => {
+      try {
+        await postForm(`/api/screen/cards/${id}`, {field: field.dataset.field, value: field.value});
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+  cardEl.querySelector('.move-up-btn').addEventListener('click', async () => {
+    await postForm(`/api/screen/cards/${id}/move`, {direction: 'up'});
+    location.reload();
+  });
+  cardEl.querySelector('.move-down-btn').addEventListener('click', async () => {
+    await postForm(`/api/screen/cards/${id}/move`, {direction: 'down'});
+    location.reload();
+  });
+  cardEl.querySelector('.delete-card-btn').addEventListener('click', async () => {
+    if (!confirm('Delete this card?')) return;
+    await postForm(`/api/screen/cards/${id}/delete`, {});
+    cardEl.remove();
+  });
+}
+
+document.querySelectorAll('.screen-card').forEach(wireCard);
+
+document.getElementById('add-card-btn').addEventListener('click', async () => {
+  const title = prompt('Card title:');
+  if (!title) return;
+  let card;
+  try {
+    card = await postForm('/api/screen/cards', {game: gameKey, title, body: ''});
+  } catch (err) {
+    alert(err.message);
+    return;
+  }
+  const div = el('div', {class: 'screen-card', 'data-id': card.id}, [
+    el('div', {class: 'screen-card-head'}, [
+      el('input', {type: 'text', class: 'screen-card-title', 'data-field': 'title', value: card.title}),
+      el('div', {class: 'screen-card-actions'}, [
+        el('button', {type: 'button', class: 'icon-btn move-up-btn', title: 'Move up', html: '&uarr;'}),
+        el('button', {type: 'button', class: 'icon-btn move-down-btn', title: 'Move down', html: '&darr;'}),
+        el('button', {type: 'button', class: 'icon-btn delete-card-btn', title: 'Delete card', html: '&times;'}),
+      ]),
+    ]),
+    el('textarea', {class: 'screen-card-body', 'data-field': 'body', rows: '8'}),
+  ]);
+  document.getElementById('cards-grid').appendChild(div);
+  wireCard(div);
+  div.querySelector('.screen-card-body').focus();
+});
+</script>
+{% endblock %}
