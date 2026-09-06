@@ -11,6 +11,7 @@ from . import bookmarks as bookmarks_module
 from . import campaigns as campaigns_module
 from . import config, database
 from . import gm_screen
+from . import llm as llm_module
 from . import theme as theme_module
 from . import maps_store
 from .library import games as games_module
@@ -43,7 +44,12 @@ def _library_root():
 
 def _base_ctx(request):
     theme_name = theme_module.get_theme_name()
-    ctx = {"request": request, "library_root": _library_root(), "theme_name": theme_name}
+    ctx = {
+        "request": request,
+        "library_root": _library_root(),
+        "theme_name": theme_name,
+        "ai_enabled": llm_module.is_enabled(),
+    }
     if theme_name == "custom":
         ctx["custom_theme_vars"] = theme_module.get_custom_vars()
     return ctx
@@ -73,7 +79,27 @@ def settings_page(request: Request, scan_result: str = None):
     # Always available (not just when "custom" is active) so the customize
     # panel has something sensible to start from either way.
     ctx["custom_theme_vars"] = theme_module.get_custom_vars()
+    ctx["ai_providers"] = llm_module.PROVIDERS
+    ctx["ai_config"] = llm_module.get_config()
     return templates.TemplateResponse(request, "settings.html", ctx)
+
+
+@app.post("/api/settings/ai")
+def save_ai_settings(provider: str = Form(...), base_url: str = Form(""),
+                      api_key: str = Form(""), model: str = Form("")):
+    try:
+        llm_module.save_config(provider, base_url, api_key, model)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/settings/ai/test")
+def test_ai_settings():
+    result = llm_module.test_connection()
+    if not result["ok"]:
+        return JSONResponse({"error": result["error"]}, status_code=400)
+    return JSONResponse({"ok": True, "reply": result["reply"], "verified_at": llm_module.get_config()["verified_at"]})
 
 
 @app.post("/settings/library-root")
@@ -814,6 +840,35 @@ def api_screen_delete_card(card_id: int):
 def api_screen_save_notes(game: str = Form("_global"), body: str = Form("")):
     gm_screen.set_notes(game, body)
     return JSONResponse({"ok": True})
+
+
+@app.post("/api/screen/recap")
+def api_screen_recap(game: str = Form("_global")):
+    if not llm_module.is_enabled():
+        return JSONResponse(
+            {"error": "AI features aren't enabled yet - set up and test a connection in Settings."},
+            status_code=400,
+        )
+    notes = gm_screen.get_notes(game)
+    if not notes.strip():
+        return JSONResponse(
+            {"error": "There are no session notes saved for this game yet - jot down where you left off first."},
+            status_code=400,
+        )
+    game_obj = _game_ctx(game if game != "_global" else None)
+    game_name = game_obj["name"] if game_obj else "the campaign"
+    system_prompt = (
+        "You are a tabletop RPG assistant helping a Game Master recap the previous session "
+        "before play resumes. Write a short, evocative 'Previously on...' recap addressed to "
+        "the players, based only on the GM's own session notes below. Do not invent plot "
+        "details that aren't implied by the notes. Keep it to one tight paragraph, 4-6 sentences."
+    )
+    user_prompt = f"Game: {game_name}\n\nGM's session notes:\n{notes}"
+    try:
+        recap = llm_module.generate(system_prompt, user_prompt, max_tokens=400)
+    except llm_module.LLMError as e:
+        return JSONResponse({"error": str(e)}, status_code=502)
+    return JSONResponse({"recap": recap})
 
 
 @app.get("/tools/npc")

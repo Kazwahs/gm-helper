@@ -102,6 +102,66 @@
   <div id="ocr-result" class="result-box" style="display:none;"></div>
 </div>
 
+<div class="card">
+  <h3>AI features <span class="muted" style="font-size:0.7em; text-transform:uppercase; letter-spacing:0.04em;">Experimental</span></h3>
+  <p class="muted">
+    Point GM Helper at a local model (e.g. Ollama on this server or another machine on your
+    network) or a cloud API, and AI-assisted features (like the session recap on the GM Screen
+    tab) become available. Nothing AI-related shows up anywhere else in the app until a
+    connection below is tested and confirmed working - and if you change anything here, it goes
+    back to hidden until it's tested again.
+  </p>
+
+  <div class="row field-group">
+    <div style="flex:1 1 220px;">
+      <label class="field-label" for="ai-provider">Provider</label>
+      <select id="ai-provider" style="width:100%;">
+        {% for key, label in ai_providers.items() %}
+          <option value="{{ key }}" {% if ai_config.provider == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  <div class="row field-group" id="ai-base-url-row">
+    <div style="flex:1 1 100%;">
+      <label class="field-label" for="ai-base-url">Base URL</label>
+      <input type="text" id="ai-base-url" class="input-wide-lg" value="{{ ai_config.base_url }}"
+        placeholder="http://192.168.1.50:11434/v1">
+    </div>
+  </div>
+
+  <div class="row field-group">
+    <div style="flex:1 1 260px;">
+      <label class="field-label" for="ai-api-key">API key</label>
+      <input type="password" id="ai-api-key" class="input-wide" value="{{ ai_config.api_key }}"
+        placeholder="Leave blank for a local server with no auth" autocomplete="off">
+    </div>
+    <div style="flex:1 1 220px;">
+      <label class="field-label" for="ai-model">Model</label>
+      <input type="text" id="ai-model" class="input-wide" value="{{ ai_config.model }}"
+        placeholder="e.g. llama3.1:8b or claude-sonnet-4-5">
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:0.5rem;">
+    <button type="button" id="save-ai-btn" class="secondary">Save</button>
+    <button type="button" id="test-ai-btn">Test connection</button>
+  </div>
+
+  <p id="ai-status" style="margin-top:0.75rem;">
+    {% if ai_config.verified %}
+      <span class="badge good">&#10003; Verified working</span>
+      <span class="muted">as of {{ ai_config.verified_at }} - AI features are enabled.</span>
+    {% else %}
+      <span class="badge bad">Not tested</span>
+      <span class="muted">AI features stay hidden until a connection test succeeds.</span>
+    {% endif %}
+  </p>
+
+  <div id="ai-result" class="result-box" style="display:none;"></div>
+</div>
+
 {% endblock %}
 {% block scripts %}
 <script>
@@ -336,5 +396,69 @@ document.getElementById('ocr-all-btn').addEventListener('click', () => startOcr(
 document.getElementById('ocr-retry-btn').addEventListener('click', () => startOcr('retry_failed'));
 
 pollOcrProgress();
+
+// ---- AI features ----
+const aiProviderSelect = document.getElementById('ai-provider');
+const aiBaseUrlRow = document.getElementById('ai-base-url-row');
+const aiResultBox = document.getElementById('ai-result');
+const aiStatus = document.getElementById('ai-status');
+
+function updateAiFieldVisibility() {
+  aiBaseUrlRow.hidden = aiProviderSelect.value !== 'openai_compatible';
+}
+updateAiFieldVisibility();
+aiProviderSelect.addEventListener('change', updateAiFieldVisibility);
+
+function showAiResult(obj) {
+  aiResultBox.style.display = 'block';
+  aiResultBox.textContent = JSON.stringify(obj, null, 2);
+}
+
+function markAiUntested() {
+  aiStatus.innerHTML = '<span class="badge bad">Not tested</span> '
+    + '<span class="muted">AI features stay hidden until a connection test succeeds.</span>';
+}
+
+document.getElementById('save-ai-btn').addEventListener('click', async () => {
+  try {
+    await postForm('/api/settings/ai', {
+      provider: aiProviderSelect.value,
+      base_url: document.getElementById('ai-base-url').value,
+      api_key: document.getElementById('ai-api-key').value,
+      model: document.getElementById('ai-model').value,
+    });
+    markAiUntested();
+    showAiResult({status: 'Saved. Test the connection to enable AI features.'});
+  } catch (e) {
+    showAiResult({error: e.message});
+  }
+});
+
+document.getElementById('test-ai-btn').addEventListener('click', async (e) => {
+  const btn = e.currentTarget;
+  btn.disabled = true;
+  const originalText = btn.textContent;
+  btn.textContent = 'Testing...';
+  try {
+    // Save first so the test always runs against exactly what's on screen,
+    // not whatever was last saved.
+    await postForm('/api/settings/ai', {
+      provider: aiProviderSelect.value,
+      base_url: document.getElementById('ai-base-url').value,
+      api_key: document.getElementById('ai-api-key').value,
+      model: document.getElementById('ai-model').value,
+    });
+    const res = await postForm('/api/settings/ai/test', {});
+    aiStatus.innerHTML = `<span class="badge good">&#10003; Verified working</span> `
+      + `<span class="muted">as of ${res.verified_at} - AI features are enabled.</span>`;
+    showAiResult({status: 'Connected', reply: res.reply});
+  } catch (err) {
+    markAiUntested();
+    showAiResult({error: err.message});
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+});
 </script>
 {% endblock %}

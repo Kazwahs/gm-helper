@@ -41,4 +41,12 @@ DEFAULT_SETTINGS = {
     # logic. Listed here just so a fresh settings table's shape is obvious.
     "theme_name": "tavern",
     "custom_theme_vars": "",
+    # Optional AI integration - see app/llm.py. Off (and hidden) until a
+    # connection has been configured *and* tested successfully.
+    "ai_provider": "openai_compatible",
+    "ai_base_url": "",
+    "ai_api_key": "",
+    "ai_model": "",
+    "ai_verified": "",
+    "ai_verified_at": "",
 }

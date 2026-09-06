@@ -284,6 +284,19 @@ tbody tr:hover { background: var(--bg-panel-2); }
   white-space: pre-wrap;
 }
 
+/* AI-generated read-aloud text, styled like a module's boxed text - an
+   italic passage with an accent rule, set apart from the GM's own notes. */
+.boxed-text {
+  background: var(--bg-panel-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.85rem 1.1rem;
+  margin-top: 0.75rem;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
 /* ---- graphical dice roller ---- */
 .dice-tray { display: flex; gap: 0.6rem; flex-wrap: wrap; }
 

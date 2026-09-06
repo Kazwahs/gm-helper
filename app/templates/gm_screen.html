@@ -19,6 +19,12 @@
   <label class="field-label">Session notes</label>
   <textarea id="session-notes" rows="4"
     placeholder="Where we left off, reminders for tonight, anything campaign-specific...">{{ notes }}</textarea>
+  {% if ai_enabled %}
+    <div class="row" style="margin-top:0.75rem;">
+      <button type="button" id="recap-btn" class="secondary">&#10024; Summarize last session</button>
+    </div>
+    <div id="recap-box" class="boxed-text" style="display:none;"></div>
+  {% endif %}
 </div>
 
 <div class="row" style="justify-content: space-between; align-items: center; margin-top: 1rem;">
@@ -53,6 +59,27 @@ document.getElementById('session-notes').addEventListener('change', async (e) =>
     alert(err.message);
   }
 });
+
+const recapBtn = document.getElementById('recap-btn');
+if (recapBtn) {
+  recapBtn.addEventListener('click', async () => {
+    const box = document.getElementById('recap-box');
+    recapBtn.disabled = true;
+    const original = recapBtn.textContent;
+    recapBtn.textContent = 'Thinking...';
+    try {
+      const res = await postForm('/api/screen/recap', {game: gameKey});
+      box.style.display = 'block';
+      box.textContent = res.recap;
+    } catch (err) {
+      box.style.display = 'block';
+      box.textContent = 'Could not generate a recap: ' + err.message;
+    } finally {
+      recapBtn.disabled = false;
+      recapBtn.textContent = original;
+    }
+  });
+}
 
 function wireCard(cardEl) {
   const id = cardEl.dataset.id;
