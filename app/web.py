@@ -1,16 +1,57 @@
 """Shared web plumbing for the routers: the Jinja environment and the
 handful of helpers every page needs (template context, library root, the
 current game)."""
+import hashlib
 import os
 
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import config, database
 from . import llm as llm_module
 from . import theme as theme_module
 from .library import games as games_module
+from .nav import build_nav
 
 templates = Jinja2Templates(directory=os.path.join(config.APP_DIR, "templates"))
+
+_asset_versions = {}
+
+
+def asset_url(path):
+    """URL for a file under app/static with a short content hash on the end,
+    e.g. /static/app.js?v=3f9c2a1b7d. When the file changes the URL changes, so
+    a browser can never keep running an old cached copy of the CSS or JS next
+    to newer HTML (which is how a page ends up with a menu button whose click
+    handler is missing)."""
+    full = os.path.join(config.APP_DIR, "static", path)
+    try:
+        stat = os.stat(full)
+        stamp = (stat.st_mtime_ns, stat.st_size)
+        cached = _asset_versions.get(full)
+        if cached is None or cached[0] != stamp:
+            with open(full, "rb") as f:
+                cached = (stamp, hashlib.sha1(f.read()).hexdigest()[:10])
+            _asset_versions[full] = cached
+        version = cached[1]
+    except OSError:
+        version = "0"
+    return f"/static/{path}?v={version}"
+
+
+class NoCacheStaticFiles(StaticFiles):
+    """Static files that the browser must re-check (a cheap 304 when nothing
+    changed) instead of reusing on a guess - belt and braces alongside the
+    versioned URLs above."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+templates.env.globals["asset"] = asset_url
+templates.env.globals["build_nav"] = build_nav
 
 
 def library_root():

@@ -85,21 +85,56 @@ function renderMarkdown(text) {
 }
 
 
-// Mobile nav toggle + close an open dropdown when clicking elsewhere.
+// Navigation: phone hamburger, dropdowns (Escape / click-away close them), and
+// remembering the last game so Library and Campaigns stay in the menu on pages
+// that have no game of their own (Settings, Bookmarks...).
 document.addEventListener("DOMContentLoaded", () => {
   const toggle = document.getElementById("nav-toggle");
   const nav = document.getElementById("site-nav");
+  const setNavOpen = (open) => {
+    if (!nav || !toggle) return;
+    nav.classList.toggle("open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  };
   if (toggle && nav) {
-    toggle.addEventListener("click", () => {
-      const open = nav.classList.toggle("open");
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
-    });
+    toggle.addEventListener("click", () => setNavOpen(!nav.classList.contains("open")));
   }
+
   document.addEventListener("click", (e) => {
     document.querySelectorAll("details.nav-menu[open]").forEach((d) => {
       if (!d.contains(e.target)) d.removeAttribute("open");
     });
+    // tapping the page (not the header) folds the phone menu back up
+    if (nav && nav.classList.contains("open") && !e.target.closest("header.topbar")) setNavOpen(false);
   });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const openMenu = document.querySelector("details.nav-menu[open]");
+    if (openMenu) {
+      openMenu.removeAttribute("open");
+      const summary = openMenu.querySelector("summary");
+      if (summary) summary.focus();
+    } else if (nav && nav.classList.contains("open")) {
+      setNavOpen(false);
+      if (toggle) toggle.focus();
+    }
+  });
+
+  // growing the window past the phone layout shouldn't leave the menu "open"
+  if (window.matchMedia) {
+    const wide = window.matchMedia("(min-width: 761px)");
+    const onChange = (ev) => { if (ev.matches) setNavOpen(false); };
+    if (wide.addEventListener) wide.addEventListener("change", onChange);
+    else if (wide.addListener) wide.addListener(onChange);
+  }
+
+  const game = document.body.dataset.game;
+  if (game) {
+    try {
+      document.cookie = "gm_game=" + encodeURIComponent(game) + "; path=/; max-age=31536000; SameSite=Lax";
+    } catch (err) { /* cookies blocked - the nav just won't remember the game */ }
+  }
 });
 
 

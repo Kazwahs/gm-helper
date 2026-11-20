@@ -1,11 +1,12 @@
 <!doctype html>
+{% set gk = game_key or (game.key if game else None) %}
 <html lang="en" data-theme="{{ theme_name or 'tavern' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}GM Helper{% endblock %}</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%231b1a17%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 font-family=%27serif%27 font-weight=%27bold%27 text-anchor=%27middle%27 fill=%27%23c4863f%27%3EGM%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="{{ asset('style.css') }}">
   {% if theme_name == 'custom' and custom_theme_vars %}
     <style>
       :root[data-theme="custom"] {
@@ -15,38 +16,37 @@
     </style>
   {% endif %}
 </head>
-<body>
+<body{% if gk %} data-game="{{ gk }}"{% endif %}>
+  {% set nav = build_nav(request.url.path, gk, request.cookies.get('gm_game')) %}
   <header class="topbar">
     <a class="brand" href="/">GM Helper</a>
     <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav">&#9776; Menu</button>
-    <nav id="site-nav">
-      {% set gk = game_key or (game.key if game else None) %}
-      <a href="/">Games</a>
-      {% if gk %}
-        <a href="/library?game={{ gk }}">Library</a>
-        <a href="/campaigns?game={{ gk }}">Campaigns</a>
-      {% endif %}
-      <a href="/maps{% if gk %}?game={{ gk }}{% endif %}">Maps</a>
-      <a href="/screen{% if gk %}?game={{ gk }}{% endif %}">GM Screen</a>
-      <details class="nav-menu">
-        <summary>Tools</summary>
+    <nav id="site-nav" aria-label="Main">
+      <details class="nav-menu game-switcher">
+        <summary title="Switch game">{{ nav.game_name or "Choose a game" }}</summary>
         <div class="nav-menu-items">
-          <a href="/tools/dice{% if gk %}?game={{ gk }}{% endif %}">Dice</a>
-          <a href="/tools/tables{% if gk %}?game={{ gk }}{% endif %}">Random Tables</a>
-          {% if gk %}
-            <a href="/tools/initiative?game={{ gk }}">Initiative</a>
-            <a href="/tools/npc?game={{ gk }}">NPCs</a>
-            <a href="/tools/encounters?game={{ gk }}">Encounters</a>
-            <a href="/tools/oneshot?game={{ gk }}">One-Shot</a>
-          {% endif %}
+          {% for g in nav.games %}
+            <a href="{{ g.href }}"{% if g.current %} class="current" aria-current="true"{% endif %}>{{ g.name }}</a>
+          {% endfor %}
         </div>
       </details>
-      <details class="nav-menu">
+      {% for item in nav.primary %}
+        <a href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+      {% endfor %}
+      <details class="nav-menu{% if nav.tools_active %} has-current{% endif %}">
+        <summary>Tools</summary>
+        <div class="nav-menu-items">
+          {% for item in nav.tools %}
+            <a href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+          {% endfor %}
+        </div>
+      </details>
+      <details class="nav-menu{% if nav.more_active %} has-current{% endif %}">
         <summary>More</summary>
         <div class="nav-menu-items">
-          <a href="/bookmarks">Bookmarks</a>
-          <a href="/games/manage">Manage Games</a>
-          <a href="/settings">Settings</a>
+          {% for item in nav.more %}
+            <a href="{{ item.href }}"{% if item.active %} aria-current="page"{% endif %}>{{ item.label }}</a>
+          {% endfor %}
         </div>
       </details>
     </nav>
@@ -60,7 +60,7 @@
     {% endif %}
     {% block content %}{% endblock %}
   </main>
-  <script src="/static/app.js"></script>
+  <script src="{{ asset('app.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

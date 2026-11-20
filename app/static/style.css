@@ -117,6 +117,10 @@ header.topbar {
   flex-wrap: wrap;
   gap: 0.5rem;
   box-shadow: var(--shadow-sm);
+  /* stays put while you scroll, so the menu is always one tap away */
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 
 header.topbar .brand {
@@ -720,6 +724,29 @@ header.topbar .nav-menu-items a {
 }
 header.topbar .nav-menu-items a:hover { background: var(--bg-panel-2); }
 
+/* the page you're on */
+header.topbar nav a[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+details.nav-menu.has-current > summary { color: var(--accent); border-bottom-color: var(--accent); }
+header.topbar .nav-menu-items a[aria-current="page"] { color: var(--accent); background: var(--bg-panel-2); font-weight: bold; }
+
+/* the game you're in - always visible, click to switch */
+details.game-switcher { margin-left: 0; }
+details.game-switcher > summary {
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.1rem 0.85rem;
+  font-size: 0.9rem;
+}
+details.game-switcher > summary:hover,
+details.game-switcher[open] > summary { background: var(--bg-panel-2); border-bottom-color: var(--accent); }
+details.game-switcher .nav-menu-items { left: 0; right: auto; max-height: 65vh; overflow-y: auto; min-width: 14rem; }
+header.topbar .nav-menu-items a.current { color: var(--accent); font-weight: bold; }
+header.topbar .nav-menu-items a.current::before { content: "\2713  "; }
+details.nav-menu > summary:focus-visible,
+header.topbar nav a:focus-visible,
+.nav-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
 @media (max-width: 760px) {
   .nav-toggle {
     display: inline-block;
@@ -731,7 +758,10 @@ header.topbar .nav-menu-items a:hover { background: var(--bg-panel-2); }
     box-shadow: none;
   }
   header.topbar nav { display: none; width: 100%; flex-direction: column; align-items: stretch; }
-  header.topbar nav.open { display: flex; }
+  /* the header is sticky, so a long open menu must scroll inside itself */
+  header.topbar nav.open { display: flex; max-height: calc(100vh - 4.5rem); overflow-y: auto; }
+  details.game-switcher > summary { display: inline-block; }
+  details.game-switcher .nav-menu-items { max-height: none; }
   header.topbar nav a, details.nav-menu { margin-left: 0; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
   .nav-menu-items { position: static; box-shadow: none; border: none; padding: 0.25rem 0 0 0.75rem; }
 }
