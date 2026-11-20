@@ -20,8 +20,8 @@ from . import database
 
 _CAMPAIGN_FIELDS = {"title", "pitch", "tone", "status"}
 _THREAD_FIELDS = {"title", "description", "stakes", "status"}
-_NPC_FIELDS = {"name", "role", "disposition", "motivation", "secret", "notes"}
-_LOCATION_FIELDS = {"name", "description", "parent_id"}
+_NPC_FIELDS = {"name", "role", "disposition", "motivation", "secret", "notes", "faction_id", "location_id"}
+_LOCATION_FIELDS = {"name", "description", "parent_id", "map_id"}
 _FACTION_FIELDS = {"name", "goal", "notes"}
 _SESSION_FIELDS = {
     "title", "date", "status", "strong_start", "scenes",
@@ -33,6 +33,51 @@ _REQUIRED_TEXT_FIELDS = {"title", "name"}  # can't be blanked out via a field up
 def _require_known_field(field, allowed):
     if field not in allowed:
         raise ValueError(f"Unknown field: {field}")
+
+
+def _link_id(value, table, campaign_id, label):
+    """Validates a link to another row: blank -> None, otherwise the id must
+    exist in `table` and belong to the same campaign (so one campaign can
+    never point at another's faction or location)."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        link_id = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Pick a valid {label}.")
+    with database.get_cursor() as cur:
+        row = cur.execute(
+            f"SELECT 1 FROM {table} WHERE id = ? AND campaign_id = ?", (link_id, campaign_id)
+        ).fetchone()
+    if not row:
+        raise ValueError(f"That {label} isn't part of this campaign.")
+    return link_id
+
+
+def _map_link_id(value, campaign_id):
+    """A location may link to any saved map that is attached to this campaign
+    or not attached to any campaign."""
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        map_id = int(value)
+    except (TypeError, ValueError):
+        raise ValueError("Pick a valid map.")
+    with database.get_cursor() as cur:
+        row = cur.execute("SELECT campaign_id FROM maps WHERE id = ?", (map_id,)).fetchone()
+    if not row:
+        raise ValueError("That map no longer exists.")
+    if row["campaign_id"] not in (None, campaign_id):
+        raise ValueError("That map belongs to a different campaign.")
+    return map_id
+
+
+def _campaign_of(table, row_id):
+    with database.get_cursor() as cur:
+        row = cur.execute(f"SELECT campaign_id FROM {table} WHERE id = ?", (row_id,)).fetchone()
+    if not row:
+        raise ValueError("Unknown item - it may have been deleted.")
+    return row["campaign_id"]
 
 
 # --------------------------------------------------------------- campaigns
@@ -149,22 +194,32 @@ def delete_thread(thread_id):
 
 # --------------------------------------------------------------- cast/npcs
 def list_npcs(campaign_id):
+    """The cast, each with `faction_name` / `location_name` filled in when linked."""
     with database.get_cursor() as cur:
         rows = cur.execute(
-            "SELECT * FROM campaign_npcs WHERE campaign_id = ? ORDER BY id", (campaign_id,)
+            """SELECT n.*, f.name AS faction_name, l.name AS location_name
+               FROM campaign_npcs n
+               LEFT JOIN campaign_factions f ON f.id = n.faction_id
+               LEFT JOIN campaign_locations l ON l.id = n.location_id
+               WHERE n.campaign_id = ? ORDER BY n.id""",
+            (campaign_id,),
         ).fetchall()
     return [dict(r) for r in rows]
 
 
-def add_npc(campaign_id, name, role="", disposition="neutral", motivation="", secret="", notes=""):
+def add_npc(campaign_id, name, role="", disposition="neutral", motivation="", secret="", notes="",
+            faction_id=None, location_id=None):
     name = (name or "").strip()
     if not name:
         raise ValueError("Give the NPC a name.")
+    faction_id = _link_id(faction_id, "campaign_factions", campaign_id, "faction")
+    location_id = _link_id(location_id, "campaign_locations", campaign_id, "location")
     with database.get_cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO campaign_npcs (campaign_id, name, role, disposition, motivation, secret, notes) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (campaign_id, name, role or "", disposition or "neutral", motivation or "", secret or "", notes or ""),
+            "INSERT INTO campaign_npcs (campaign_id, name, role, disposition, motivation, secret, notes, "
+            "faction_id, location_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (campaign_id, name, role or "", disposition or "neutral", motivation or "", secret or "",
+             notes or "", faction_id, location_id),
         )
         return cur.lastrowid
 
@@ -173,6 +228,10 @@ def update_npc_field(npc_id, field, value):
     _require_known_field(field, _NPC_FIELDS)
     if field in _REQUIRED_TEXT_FIELDS and not (value or "").strip():
         raise ValueError("That field can't be blank.")
+    if field in ("faction_id", "location_id"):
+        table = "campaign_factions" if field == "faction_id" else "campaign_locations"
+        value = _link_id(value, table, _campaign_of("campaign_npcs", npc_id),
+                         "faction" if field == "faction_id" else "location")
     with database.get_cursor(commit=True) as cur:
         cur.execute(f"UPDATE campaign_npcs SET {field} = ? WHERE id = ?", (value, npc_id))
 
@@ -191,7 +250,9 @@ def locations_tree(campaign_id):
         rows = [
             dict(r)
             for r in cur.execute(
-                "SELECT * FROM campaign_locations WHERE campaign_id = ? ORDER BY name COLLATE NOCASE",
+                """SELECT l.*, m.title AS map_title
+                   FROM campaign_locations l LEFT JOIN maps m ON m.id = l.map_id
+                   WHERE l.campaign_id = ? ORDER BY l.name COLLATE NOCASE""",
                 (campaign_id,),
             ).fetchall()
         ]
@@ -218,24 +279,58 @@ def locations_tree(campaign_id):
     return ordered
 
 
-def add_location(campaign_id, name, description="", parent_id=None):
+def add_location(campaign_id, name, description="", parent_id=None, map_id=None):
     name = (name or "").strip()
     if not name:
         raise ValueError("Give the location a name.")
+    parent_id = _link_id(parent_id, "campaign_locations", campaign_id, "parent location")
+    map_id = _map_link_id(map_id, campaign_id)
     with database.get_cursor(commit=True) as cur:
         cur.execute(
-            "INSERT INTO campaign_locations (campaign_id, name, description, parent_id) VALUES (?, ?, ?, ?)",
-            (campaign_id, name, description or "", parent_id),
+            "INSERT INTO campaign_locations (campaign_id, name, description, parent_id, map_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (campaign_id, name, description or "", parent_id, map_id),
         )
         return cur.lastrowid
+
+
+def unlink_map_from_other_campaigns(map_id, keep_campaign_id):
+    """When a map is attached to a campaign (or detached), locations in any
+    *other* campaign stop pointing at it - a map shouldn't be reachable from
+    two campaigns' location lists at once."""
+    with database.get_cursor(commit=True) as cur:
+        if keep_campaign_id:
+            cur.execute(
+                "UPDATE campaign_locations SET map_id = NULL WHERE map_id = ? AND campaign_id != ?",
+                (map_id, keep_campaign_id),
+            )
+        # (detaching keeps links: the map is "unattached", which any campaign may link to)
+
+
+def locations_for_map(map_id):
+    """Campaign locations that link to this map (for the map page's 'used in')."""
+    with database.get_cursor() as cur:
+        rows = cur.execute(
+            """SELECT l.id, l.name, l.campaign_id, c.title AS campaign_title
+               FROM campaign_locations l JOIN campaigns c ON c.id = l.campaign_id
+               WHERE l.map_id = ? ORDER BY c.title COLLATE NOCASE, l.name COLLATE NOCASE""",
+            (map_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def update_location_field(location_id, field, value):
     _require_known_field(field, _LOCATION_FIELDS)
     if field in _REQUIRED_TEXT_FIELDS and not (value or "").strip():
         raise ValueError("That field can't be blank.")
+    if field == "map_id":
+        map_id = _map_link_id(value, _campaign_of("campaign_locations", location_id))
+        with database.get_cursor(commit=True) as cur:
+            cur.execute("UPDATE campaign_locations SET map_id = ? WHERE id = ?", (map_id, location_id))
+        return
     if field == "parent_id":
-        new_parent_id = int(value) if value else None
+        new_parent_id = _link_id(value, "campaign_locations", _campaign_of("campaign_locations", location_id),
+                                 "parent location")
         if new_parent_id == location_id:
             raise ValueError("A location can't be its own parent.")
         if new_parent_id is not None:

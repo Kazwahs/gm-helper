@@ -48,10 +48,40 @@
       </select>
     </div>
   </div>
+  {% if linked_locations %}
+    <p class="muted" style="margin:0 0 0.75rem;">
+      Linked from:
+      {% for l in linked_locations %}
+        <a href="/campaigns/{{ l.campaign_id }}">{{ l.name }} ({{ l.campaign_title }})</a>{% if not loop.last %}, {% endif %}
+      {% endfor %}
+    </p>
+  {% endif %}
   <div class="row">
     <button type="button" id="download-svg-btn" class="secondary">Download SVG</button>
     <button type="button" id="download-png-btn" class="secondary">Download PNG</button>
   </div>
+</div>
+
+<div class="card fog-card" id="fog-card">
+  <h3 style="margin-top:0;">Player view &amp; fog of war</h3>
+  <p class="muted">
+    Put the player view on a second screen or TV. With fog on, players only see the areas you reveal.
+    The fog is a visual cover for the table - it doesn't hide the map from anyone who views the page's source.
+  </p>
+  <div class="row">
+    <a class="button-link" href="/maps/{{ map.id }}/player" target="_blank" rel="noopener">Open player view</a>
+    <a class="button-link" href="/maps/{{ map.id }}/print" target="_blank" rel="noopener">Print to scale</a>
+    <label class="inline-check"><input type="checkbox" id="fog-enabled"> Fog on</label>
+    <label class="inline-check"><input type="checkbox" id="reveal-mode"> Reveal mode (click the map)</label>
+  </div>
+  <div class="row" id="reveal-options" hidden style="margin-top:0.75rem;">
+    <label class="inline-check"><input type="radio" name="reveal-tool" value="circle" checked> Circle</label>
+    <label class="inline-check"><input type="radio" name="reveal-tool" value="room"> Room / building</label>
+    <label class="inline-check" id="radius-wrap">Radius <input type="range" id="reveal-radius" min="10" max="200" value="60"></label>
+    <button type="button" id="undo-reveal-btn" class="secondary">Undo</button>
+    <button type="button" id="clear-reveal-btn" class="secondary danger">Re-fog everything</button>
+  </div>
+  <p class="muted" id="fog-hint" style="margin-bottom:0;" hidden></p>
 </div>
 {% endblock %}
 {% block scripts %}
@@ -78,7 +108,7 @@ function mapSvgRoot() {
 // transient selection-highlight box so it never ends up saved or exported.
 function currentSvgString() {
   const clone = mapSvgRoot().cloneNode(true);
-  clone.querySelectorAll('.map-el-selection-box').forEach((n) => n.remove());
+  clone.querySelectorAll('.map-el-selection-box, .fog-el').forEach((n) => n.remove());
   clone.querySelectorAll('.map-el.selected').forEach((n) => n.classList.remove('selected'));
   return new XMLSerializer().serializeToString(clone);
 }
@@ -334,5 +364,97 @@ document.getElementById('revert-btn').addEventListener('click', async () => {
     location.reload();
   } catch (err) { alert('Could not revert: ' + err.message); }
 });
+// ------------------------------------------------------------ fog of war
+let fogState = {{ reveal | tojson }};
+let revealMode = false;
+const fogEnabledBox = document.getElementById('fog-enabled');
+const revealModeBox = document.getElementById('reveal-mode');
+const revealOptions = document.getElementById('reveal-options');
+const radiusInput = document.getElementById('reveal-radius');
+const fogHint = document.getElementById('fog-hint');
+
+function drawFog() {
+  // the GM sees the fog see-through, so they can still read the hidden parts
+  applyFog(mapSvgRoot(), fogState, 0.55);
+  fogEnabledBox.checked = !!fogState.enabled;
+}
+
+(function sizeRadiusSlider() {
+  const root = mapSvgRoot();
+  const vb = root.viewBox.baseVal;
+  const width = vb && vb.width ? vb.width : (parseFloat(root.getAttribute('width')) || 600);
+  radiusInput.min = Math.round(width / 40);
+  radiusInput.max = Math.round(width / 3);
+  radiusInput.value = Math.round(width / 12);
+})();
+
+function currentTool() {
+  return document.querySelector('input[name="reveal-tool"]:checked').value;
+}
+
+function refreshRevealUI() {
+  revealOptions.hidden = !revealMode;
+  mapFrame.classList.toggle('revealing', revealMode);
+  document.getElementById('radius-wrap').hidden = currentTool() !== 'circle';
+  fogHint.hidden = !revealMode;
+  fogHint.textContent = currentTool() === 'room'
+    ? 'Click a room or building to reveal all of it.'
+    : 'Click the map to reveal a circle around that point.';
+}
+
+async function fogCall(url, data) {
+  try {
+    fogState = await postForm(url, data);
+    drawFog();
+  } catch (err) { alert('Fog of war: ' + err.message); }
+}
+
+fogEnabledBox.addEventListener('change', () => fogCall(`/api/maps/${mapId}/reveal/enabled`, {enabled: fogEnabledBox.checked ? 1 : 0}));
+
+revealModeBox.addEventListener('change', async () => {
+  revealMode = revealModeBox.checked;
+  if (revealMode && editMode) editModeBtn.click();      // reveal and edit clicks would clash
+  if (revealMode && !fogState.enabled) await fogCall(`/api/maps/${mapId}/reveal/enabled`, {enabled: 1});
+  refreshRevealUI();
+});
+document.querySelectorAll('input[name="reveal-tool"]').forEach((r) => r.addEventListener('change', refreshRevealUI));
+
+mapFrame.addEventListener('click', async (e) => {
+  if (!revealMode || editMode) return;
+  const svgRoot = mapSvgRoot();
+  if (currentTool() === 'room') {
+    // Prefer the room/block under the cursor over a small object (furniture, a
+    // marker) sitting on top of it, so clicking a table still reveals the room.
+    const stack = document.elementsFromPoint(e.clientX, e.clientY).map((n) => n.closest('.map-el')).filter(Boolean);
+    const g = stack.find((n) => n.dataset.kind === 'room' || n.dataset.kind === 'block')
+      || stack.find((n) => n.dataset.kind !== 'object') || stack[0];
+    if (!g) { fogHint.textContent = 'That is not a room or building - click one, or switch to Circle.'; return; }
+    const b = g.getBBox();
+    const [tx, ty] = getTranslate(g);
+    const pad = 8;
+    await fogCall(`/api/maps/${mapId}/reveal/add`, {
+      shape: 'rect', x: b.x + tx - pad, y: b.y + ty - pad, w: b.width + pad * 2, h: b.height + pad * 2,
+    });
+  } else {
+    const pt = toSvgPoint(svgRoot, e);
+    await fogCall(`/api/maps/${mapId}/reveal/add`, {shape: 'circle', x: pt.x, y: pt.y, r: radiusInput.value});
+  }
+});
+
+document.getElementById('undo-reveal-btn').addEventListener('click', () => fogCall(`/api/maps/${mapId}/reveal/undo`, {}));
+document.getElementById('clear-reveal-btn').addEventListener('click', () => {
+  if (confirm('Cover the whole map in fog again?')) fogCall(`/api/maps/${mapId}/reveal/clear`, {});
+});
+
+editModeBtn.addEventListener('click', () => {
+  if (editMode && revealMode) {           // entering edit mode turns reveal mode off
+    revealMode = false;
+    revealModeBox.checked = false;
+    refreshRevealUI();
+  }
+});
+
+drawFog();
+refreshRevealUI();
 </script>
 {% endblock %}

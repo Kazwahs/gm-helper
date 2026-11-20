@@ -12,6 +12,7 @@
     <button id="enc-btn">Generate</button>
   </div>
   <div id="enc-out" class="result-box" style="display:none;"></div>
+  <button type="button" id="enc-notes-btn" class="secondary send-notes" style="display:none;">Send to session notes</button>
 </div>
 
 <div class="card">
@@ -26,17 +27,38 @@
     <button id="loot-btn">Generate</button>
   </div>
   <div id="loot-out" class="result-box" style="display:none;"></div>
+  <button type="button" id="loot-notes-btn" class="secondary send-notes" style="display:none;">Send to session notes</button>
 </div>
 {% endblock %}
 {% block scripts %}
 <script>
+const notesGame = {{ (game.key if game else "_global") | tojson }};
+let lastEncounter = '', lastLoot = '';
+
+async function sendToNotes(btn, heading, text) {
+  if (!text) return;
+  try {
+    await postForm('/api/screen/notes/append', {game: notesGame, text, heading});
+    btn.textContent = 'Sent \u2713';
+  } catch (err) {
+    btn.textContent = err.message;
+  }
+}
+
 document.getElementById('enc-btn').addEventListener('click', async () => {
   const environment = document.getElementById('env-select').value;
   const res = await postForm('/api/encounters/generate', {environment});
   const box = document.getElementById('enc-out');
   box.style.display = 'block';
   box.textContent = `[${res.environment}] ${res.encounter}`;
+  lastEncounter = box.textContent;
+  const btn = document.getElementById('enc-notes-btn');
+  btn.textContent = 'Send to session notes';
+  btn.style.display = '';
 });
+
+document.getElementById('enc-notes-btn').addEventListener('click', (e) => sendToNotes(e.target, 'Encounter', lastEncounter));
+document.getElementById('loot-notes-btn').addEventListener('click', (e) => sendToNotes(e.target, 'Loot', lastLoot));
 
 document.getElementById('loot-btn').addEventListener('click', async () => {
   const tier = document.getElementById('tier-select').value;
@@ -47,6 +69,10 @@ document.getElementById('loot-btn').addEventListener('click', async () => {
   let text = `Coin: ${res.coin} (${res.coin_formula})`;
   if (res.item) text += `\nItem: ${res.item.rarity} - ${res.item.example} (rolled ${res.item.roll})`;
   box.textContent = text;
+  lastLoot = text.replace(/\n/g, '; ');
+  const btn = document.getElementById('loot-notes-btn');
+  btn.textContent = 'Send to session notes';
+  btn.style.display = '';
 });
 </script>
 {% endblock %}

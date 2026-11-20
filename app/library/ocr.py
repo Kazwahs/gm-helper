@@ -11,13 +11,39 @@ with hundreds of scanned books this can run for hours, so callers should
 always go through ocr_pending()/retry_failed() in a background thread and
 drive a progress bar off progress_cb, the same pattern indexer.py uses.
 """
+import importlib.util
 import os
 import threading
 
-import numpy as np
-import pymupdf
-
 from .. import database
+
+# numpy / pymupdf / easyocr are optional (the "slim" Docker image leaves them
+# out), so none of them is imported until OCR actually runs - the rest of the
+# app must start and work without them.
+_REQUIRED_MODULES = ("numpy", "pymupdf", "easyocr")
+
+
+class OCRUnavailable(RuntimeError):
+    """OCR was requested but its libraries aren't installed."""
+
+
+def missing_modules():
+    """Which of OCR's libraries aren't installed (without importing them -
+    importing PyTorch just to check would take seconds)."""
+    return [m for m in _REQUIRED_MODULES if importlib.util.find_spec(m) is None]
+
+
+def is_available():
+    return not missing_modules()
+
+
+def require_available():
+    missing = missing_modules()
+    if missing:
+        raise OCRUnavailable(
+            "OCR isn't installed in this copy of GM Helper (missing: " + ", ".join(missing) + "). "
+            "Install requirements-ocr.txt, or use the full Docker image instead of the -slim one."
+        )
 
 _reader_lock = threading.Lock()
 _reader = None
@@ -42,6 +68,9 @@ def _page_to_array(page, zoom=2.0):
     """Renders one PDF page to an RGB numpy array at the given zoom (2.0 is
     roughly 144 DPI - a good balance of OCR accuracy vs. speed for printed
     book pages; push it higher for small/dense text if accuracy is poor)."""
+    import numpy as np
+    import pymupdf
+
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csRGB, alpha=False)
     return np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, pix.n)
 
@@ -53,6 +82,9 @@ def ocr_book(library_root, book_row, page_cb=None, zoom=2.0):
     from. Always marks the book ocr_attempted=1 when done (success or not)
     so a plain re-run doesn't retry it forever; use retry_failed() for that.
     """
+    require_available()
+    import pymupdf
+
     full_path = os.path.join(library_root, book_row["path"].replace("/", os.sep))
     book_id = book_row["id"]
     reader = _get_reader()

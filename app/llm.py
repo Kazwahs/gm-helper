@@ -50,12 +50,40 @@ def get_config():
     }
 
 
-def save_config(provider, base_url, api_key, model):
+def get_public_config():
+    """The config minus the API key - what a page may show. `has_api_key` says
+    whether one is saved, so the Settings page can say so without ever sending
+    the key back to the browser."""
+    config = get_config()
+    config["has_api_key"] = bool(config.pop("api_key"))
+    return config
+
+
+def save_config(provider, base_url, api_key, model, clear_key=False):
+    """Saves the connection settings.
+
+    The saved API key is never shown again, so a blank `api_key` means "keep
+    the one I already saved" - but only while the provider and base URL are
+    unchanged. Pointing the app at a different endpoint with the key field
+    blank clears the key instead of quietly sending the old credential to a
+    new host. `clear_key` removes it outright.
+    """
     if provider not in PROVIDERS:
         raise ValueError(f"Unknown provider: {provider}")
+    base_url = (base_url or "").strip().rstrip("/")
+    api_key = (api_key or "").strip()
+    old = get_config()
+    if clear_key:
+        key = ""
+    elif api_key:
+        key = api_key
+    elif provider == old["provider"] and base_url == old["base_url"]:
+        key = old["api_key"]
+    else:
+        key = ""
     database.set_setting("ai_provider", provider)
-    database.set_setting("ai_base_url", (base_url or "").strip().rstrip("/"))
-    database.set_setting("ai_api_key", (api_key or "").strip())
+    database.set_setting("ai_base_url", base_url)
+    database.set_setting("ai_api_key", key)
     database.set_setting("ai_model", (model or "").strip())
     # Any change to the config it was tested against invalidates that test -
     # a feature should never trust a connection that hasn't just been proven

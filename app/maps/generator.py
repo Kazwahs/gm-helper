@@ -24,6 +24,16 @@ _GENRE_KEYS = {g["key"] for g in GENRES}
 
 SIZES = ["small", "medium", "large"]
 
+# Map pixels per grid square, as each generator draws it - what the
+# print-to-scale view uses to turn a map into 1-inch squares. Wilderness and
+# world maps have no grid, so they get a convenient round default instead.
+GRID_PX = {"dungeon": 16, "interior": 16, "urban": 14, "underground": 13}
+DEFAULT_GRID_PX = 40
+
+
+def grid_px(map_type):
+    return GRID_PX.get(map_type, DEFAULT_GRID_PX)
+
 
 def generate_map(map_type, genre, params=None, seed=None):
     if map_type not in _MAP_TYPE_KEYS:

@@ -1,0 +1,23 @@
+# Keep the build context small and keep secrets/data out of the image.
+.git
+.github
+.gitignore
+.dockerignore
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+tests/
+docs/
+*.md
+docker-compose.yml
+requirements-dev.txt

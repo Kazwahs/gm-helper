@@ -1,9 +1,14 @@
 FROM python:3.11-slim
 
+# Build with --build-arg INSTALL_OCR=false for a much smaller image that skips
+# EasyOCR/PyTorch. Everything else works; only OCR of scanned PDFs needs them.
+ARG INSTALL_OCR=true
+
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements-ocr.txt ./
+RUN pip install --no-cache-dir -r requirements.txt \
+    && if [ "$INSTALL_OCR" = "true" ]; then pip install --no-cache-dir -r requirements-ocr.txt; fi
 
 COPY app ./app
 COPY run.py .
@@ -17,4 +22,11 @@ COPY run.py .
 # instead of the intended mounted host folder.
 
 EXPOSE 8000
+
+# /healthz answers without logging in (even with GM_HELPER_PASSWORD set) and
+# returns 503 if the database can't be opened. No curl in the slim base image,
+# so this uses Python.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)" || exit 1
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

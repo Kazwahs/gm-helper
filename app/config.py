@@ -50,3 +50,10 @@ DEFAULT_SETTINGS = {
     "ai_verified": "",
     "ai_verified_at": "",
 }
+
+
+# Optional login. Set GM_HELPER_PASSWORD to require HTTP Basic auth for the
+# whole app (username GM_HELPER_USER, default "gm"); unset or empty = no login.
+# Read at request time (see app/security.py), not import time.
+PASSWORD_ENV = "GM_HELPER_PASSWORD"
+USER_ENV = "GM_HELPER_USER"

@@ -1,0 +1,7 @@
+# OCR for scanned (image-only) PDFs. Optional: without these the app runs
+# fine, Settings just says OCR isn't installed, and scanned books stay
+# un-searchable. easyocr pulls in PyTorch, so this is a large install
+# (a GB or more) - the Docker image's "slim" variant leaves it out.
+-r requirements.txt
+pymupdf>=1.24
+easyocr>=1.7

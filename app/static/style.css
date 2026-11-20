@@ -1,3 +1,8 @@
+/* The browser's built-in [hidden] rule is weak: any class that sets `display`
+   (.row, .card, .map-editor-panel...) overrides it, so elements toggled with
+   the hidden attribute stayed visible. This makes `hidden` always win. */
+[hidden] { display: none !important; }
+
 /* ===== Theme: Tavern (default) =====
    Dark parchment-and-leather, serif-font RPG feel. Every other theme below
    only needs to override this same set of custom properties - the rest of
@@ -656,3 +661,132 @@ form.inline { display: inline; }
   padding: 2px;
   cursor: pointer;
 }
+
+/* ===== Initiative tracker ===== */
+.init-input { width: 4.5rem; text-align: center; }
+.hp-amount { width: 3.6rem; padding: 0.2rem 0.3rem; text-align: center; }
+.hp-btn { padding: 0.15rem 0.55rem; }
+.hp-down { color: var(--bad); }
+.combatant-down { text-decoration: line-through; opacity: 0.6; }
+.chip {
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px; padding: 0.05rem 0.2rem 0.05rem 0.6rem; font-size: 0.8rem;
+}
+.chip-x {
+  background: transparent; border: 0; color: var(--text-dim);
+  padding: 0 0.35rem; font-size: 1rem; line-height: 1; cursor: pointer;
+}
+.chip-x:hover { color: var(--bad); background: transparent; }
+.cond-input { width: 8.5rem; padding: 0.2rem 0.4rem; font-size: 0.85rem; }
+.cond-rounds { width: 3.4rem; padding: 0.2rem 0.3rem; font-size: 0.85rem; }
+
+
+/* ---- Navigation: dropdown menus + mobile hamburger ---- */
+header.topbar nav { display: flex; align-items: center; flex-wrap: wrap; }
+.nav-toggle { display: none; }
+details.nav-menu { position: relative; margin-left: 1.25rem; }
+details.nav-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  padding-bottom: 2px;
+  border-bottom: 2px solid transparent;
+}
+details.nav-menu > summary::-webkit-details-marker { display: none; }
+details.nav-menu > summary::after { content: " \25BE"; font-size: 0.8em; }
+details.nav-menu > summary:hover,
+details.nav-menu[open] > summary { color: var(--accent); border-bottom-color: var(--accent); }
+.nav-menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 11rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: var(--shadow-sm);
+  padding: 0.35rem 0;
+}
+header.topbar .nav-menu-items a {
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border-bottom: none;
+}
+header.topbar .nav-menu-items a:hover { background: var(--bg-panel-2); }
+
+@media (max-width: 760px) {
+  .nav-toggle {
+    display: inline-block;
+    padding: 0.3rem 0.7rem;
+    background: var(--bg-panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: none;
+  }
+  header.topbar nav { display: none; width: 100%; flex-direction: column; align-items: stretch; }
+  header.topbar nav.open { display: flex; }
+  header.topbar nav a, details.nav-menu { margin-left: 0; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
+  .nav-menu-items { position: static; box-shadow: none; border: none; padding: 0.25rem 0 0 0.75rem; }
+}
+
+/* ---- GM Screen: rendered markdown cards ---- */
+.inline-check { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.9rem; color: var(--text-dim); }
+.inline-check input { width: auto; margin: 0; }
+.screen-card-view { font-size: 0.92rem; line-height: 1.45; overflow-wrap: anywhere; }
+.screen-card-view.empty { color: var(--text-dim); font-style: italic; }
+.screen-card-view p { margin: 0 0 0.5rem; }
+.screen-card-view ul, .screen-card-view ol { margin: 0 0 0.5rem; padding-left: 1.25rem; }
+.screen-card-view li { margin-bottom: 0.2rem; }
+.screen-card-view h4 { margin: 0.4rem 0 0.25rem; }
+.screen-card-view code { background: var(--bg); padding: 0 0.25rem; border-radius: 3px; }
+.screen-card-pin { font-size: 0.85rem; }
+.screen-card-pinned { border-left: 3px solid var(--accent); }
+.screen-card.editing .screen-card-body { min-height: 10rem; }
+.screen-cards-grid.large-text { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.screen-cards-grid.large-text .screen-card-view,
+.screen-cards-grid.large-text .screen-card-body { font-size: 1.2rem; line-height: 1.5; }
+.screen-cards-grid.large-text .screen-card-title { font-size: 1.3rem; }
+
+
+/* ---- Library: grouped search hits, pager, Ask the Library ---- */
+.hit { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed var(--border); }
+.hit:first-of-type { border-top: none; }
+.pager { align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem; }
+.button-link {
+  display: inline-block; padding: 0.35rem 0.8rem; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg-panel-2); color: var(--text); text-decoration: none;
+}
+.button-link:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+.boxed-text.md p { margin: 0 0 0.5rem; }
+.boxed-text.md ul, .boxed-text.md ol { margin: 0 0 0.5rem; padding-left: 1.25rem; }
+.ask-sources { margin: 0.75rem 0 0; padding-left: 1.25rem; font-size: 0.9rem; }
+.ask-sources li.cited { font-weight: bold; }
+
+/* ---- Player view (second screen) ---- */
+body.bare { margin: 0; }
+.player-stage { height: calc(100vh - 3rem); display: flex; align-items: center; justify-content: center; background: #000; }
+.player-stage svg { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+.player-bar { height: 3rem; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: var(--bg-panel); border-top: 1px solid var(--border); }
+.player-bar.hidden { display: none; }
+.player-title { font-weight: bold; margin-right: auto; }
+html:fullscreen .player-stage { height: 100vh; }
+
+/* ---- Map fog controls (GM page) ---- */
+.fog-card .row { align-items: center; gap: 0.75rem; }
+.map-frame.revealing { cursor: crosshair; }
+
+/* ---- Random tables ---- */
+.table-card textarea { width: 100%; margin-top: 0.5rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.9rem; }
+.table-info { font-size: 0.85rem; margin-top: 0.35rem; }
+.error-text { color: var(--danger, #c0392b); }
+.roll-out { margin-top: 0.75rem; }
+.roll-out .secondary { margin-top: 0.5rem; }
+.history-list { margin: 0.75rem 0 0; padding-left: 1.25rem; }
+.history-list li { margin-bottom: 0.3rem; }

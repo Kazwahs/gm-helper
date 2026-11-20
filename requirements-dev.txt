@@ -1,4 +1,7 @@
 # Dev/test-only dependencies - not needed to run the app itself, so these
-# stay out of requirements.txt (and out of the Docker image).
+# stay out of requirements.txt (and out of the Docker image). OCR is left
+# out too: the OCR code imports its heavy libraries lazily and the tests
+# don't need them.
 -r requirements.txt
 pytest>=8.0
+httpx>=0.27   # FastAPI's TestClient

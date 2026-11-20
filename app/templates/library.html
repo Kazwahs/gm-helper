@@ -6,36 +6,72 @@
 
 <form method="get" action="/library" class="row" style="margin-bottom:1.5rem;">
   {% if game_key %}<input type="hidden" name="game" value="{{ game_key }}">{% endif %}
-  <input type="text" name="q" value="{{ query }}" placeholder="Search inside this library's books..." class="input-wide">
+  <input type="text" name="q" value="{{ query }}" placeholder='Search inside this library&#39;s books... (use "quotes" for an exact phrase)' class="input-wide">
   <button type="submit">Search</button>
 </form>
 
+{% if ai_enabled %}
+<div class="card" id="ask-card">
+  <label class="field-label" for="ask-question">&#10024; Ask the Library</label>
+  <p class="muted" style="margin-top:0;">
+    Ask a rules or lore question. The AI reads the best-matching pages from {{ game.name if game else "your books" }}
+    and answers from them, with page links so you can check.
+  </p>
+  <div class="row">
+    <input type="text" id="ask-question" class="input-wide" maxlength="500"
+      placeholder="e.g. How does grappling work? What does a mind flayer's Mind Blast do?">
+    <button type="button" id="ask-btn">Ask</button>
+  </div>
+  <div id="ask-answer" class="boxed-text md" style="display:none;"></div>
+  <ol id="ask-sources" class="ask-sources" style="display:none;"></ol>
+</div>
+{% endif %}
+
 {% if query %}
   <h3>Search results</h3>
-  {% if not results %}
+  {% if not found.total %}
     <p class="muted">No matches for "{{ query }}".</p>
+  {% else %}
+    <p class="muted" id="search-summary">
+      {{ found.total }} matching page{{ "" if found.total == 1 else "s" }}
+      {% if found.pages > 1 %}&middot; page {{ found.page }} of {{ found.pages }}{% endif %}
+      {% if found.mode == "any" %}&middot; <strong>no page has every word</strong>, so these have at least one of them (best matches first){% endif %}
+    </p>
   {% endif %}
-  {% for r in results %}
-    <div class="card" data-book-id="{{ r.book_id }}" data-page="{{ r.page_number }}">
-      <strong>{{ r.title }}</strong> <span class="muted">- {{ r.publisher }} / {{ r.series }} - p.{{ r.page_number }}</span>
-      &middot; <a href="/books/{{ r.book_id }}/file#page={{ r.page_number }}" target="_blank" rel="noopener">Open at page {{ r.page_number }}</a>
-      &middot; <button class="secondary bookmark-toggle-btn">+ Bookmark</button>
-      <div class="result-box">{{ r.snippet | safe }}</div>
+  {% for g in groups %}
+    <div class="card" data-book-id="{{ g.book_id }}">
+      <strong>{{ g.title }}</strong> <span class="muted">- {{ g.publisher }} / {{ g.series }}</span>
+      {% for r in g.hits %}
+        <div class="hit" data-page="{{ r.page_number }}">
+          <a href="/books/{{ r.book_id }}/file#page={{ r.page_number }}" target="_blank" rel="noopener">Page {{ r.page_number }}</a>
+          &middot; <button class="secondary bookmark-toggle-btn">+ Bookmark</button>
+          <button class="secondary pin-page-btn" title="Add this page as a card on your GM Screen">&#128204; Pin to screen</button>
+          <div class="result-box">{{ r.snippet | safe }}</div>
 
-      <div class="bookmark-form" hidden>
-        <div class="row">
-          <select class="bookmark-collection-select">
-            <option value="">Choose a collection…</option>
-            {% for c in collections %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
-            <option value="__new__">+ New collection…</option>
-          </select>
-          <input type="text" class="bookmark-new-name" placeholder="New collection name" hidden>
-          <input type="text" class="bookmark-note" placeholder="Note (optional)" style="min-width:220px;">
-          <button class="save-bookmark-btn">Save bookmark</button>
+          <div class="bookmark-form" hidden>
+            <div class="row">
+              <select class="bookmark-collection-select">
+                <option value="">Choose a collection…</option>
+                {% for c in collections %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}
+                <option value="__new__">+ New collection…</option>
+              </select>
+              <input type="text" class="bookmark-new-name" placeholder="New collection name" hidden>
+              <input type="text" class="bookmark-note" placeholder="Note (optional)" style="min-width:220px;">
+              <button class="save-bookmark-btn">Save bookmark</button>
+            </div>
+          </div>
         </div>
-      </div>
+      {% endfor %}
     </div>
   {% endfor %}
+  {% if found and found.pages > 1 %}
+    <div class="row pager">
+      {% set base = "/library?" ~ (("game=" ~ game_key ~ "&") if game_key else "") ~ "q=" ~ (query | urlencode) %}
+      {% if found.page > 1 %}<a class="button-link" href="{{ base }}&amp;page={{ found.page - 1 }}">&larr; Previous</a>{% endif %}
+      <span class="muted">Page {{ found.page }} of {{ found.pages }}</span>
+      {% if found.page < found.pages %}<a class="button-link" href="{{ base }}&amp;page={{ found.page + 1 }}">Next &rarr;</a>{% endif %}
+    </div>
+  {% endif %}
   <hr style="border-color: var(--border); margin: 1.5rem 0;">
 {% endif %}
 
@@ -98,9 +134,27 @@
 {% endblock %}
 {% block scripts %}
 <script>
+const pinGameKey = {{ (game_key or "_global") | tojson }};
+document.querySelectorAll('.pin-page-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('.card');
+    const hit = btn.closest('.hit');
+    btn.disabled = true;
+    try {
+      await postForm('/api/screen/pin', {
+        game: pinGameKey, book_id: card.dataset.bookId, page_number: hit.dataset.page,
+      });
+      btn.textContent = 'Pinned \u2713';
+    } catch (e) {
+      btn.disabled = false;
+      alert('Could not pin: ' + e.message);
+    }
+  });
+});
+
 document.querySelectorAll('.bookmark-toggle-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    const form = btn.closest('.card').querySelector('.bookmark-form');
+    const form = btn.closest('.hit').querySelector('.bookmark-form');
     form.hidden = !form.hidden;
   });
 });
@@ -115,6 +169,7 @@ document.querySelectorAll('.bookmark-collection-select').forEach(select => {
 document.querySelectorAll('.save-bookmark-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
     const card = btn.closest('.card');
+    const hit = btn.closest('.hit');
     const row = btn.closest('.row');
     const select = row.querySelector('.bookmark-collection-select');
     const newName = row.querySelector('.bookmark-new-name').value.trim();
@@ -122,7 +177,7 @@ document.querySelectorAll('.save-bookmark-btn').forEach(btn => {
 
     const data = {
       book_id: card.dataset.bookId,
-      page_number: card.dataset.page,
+      page_number: hit.dataset.page,
       note: note,
     };
     if (select.value === '__new__') {
@@ -145,6 +200,66 @@ document.querySelectorAll('.save-bookmark-btn').forEach(btn => {
     }
   });
 });
+
+// ---- Ask the Library ----
+const askBtn = document.getElementById('ask-btn');
+if (askBtn) {
+  const askInput = document.getElementById('ask-question');
+  const answerBox = document.getElementById('ask-answer');
+  const sourceList = document.getElementById('ask-sources');
+
+  // Turn "[2]" in the rendered answer into links to the cited source.
+  function linkCitations(root, sources) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach((node) => {
+      if (!/\[\d{1,2}\]/.test(node.nodeValue)) return;
+      const frag = document.createDocumentFragment();
+      node.nodeValue.split(/(\[\d{1,2}\])/).forEach((part) => {
+        const m = part.match(/^\[(\d{1,2})\]$/);
+        const src = m && sources.find((s) => s.n === Number(m[1]));
+        if (src) {
+          frag.appendChild(el('a', {
+            href: `/books/${src.book_id}/file#page=${src.page_number}`,
+            target: '_blank', rel: 'noopener', title: `${src.title}, p.${src.page_number}`,
+          }, `[${src.n}]`));
+        } else if (part) {
+          frag.appendChild(document.createTextNode(part));
+        }
+      });
+      node.replaceWith(frag);
+    });
+  }
+
+  async function ask() {
+    const question = askInput.value.trim();
+    if (!question) return;
+    askBtn.disabled = true;
+    askBtn.textContent = 'Reading the books...';
+    answerBox.style.display = 'block';
+    answerBox.textContent = '';
+    sourceList.style.display = 'none';
+    try {
+      const res = await postForm('/api/library/ask', {question, game: pinGameKey === '_global' ? '' : pinGameKey});
+      answerBox.replaceChildren(renderMarkdown(res.answer));
+      linkCitations(answerBox, res.sources);
+      sourceList.replaceChildren(...res.sources.map((s) => el('li', {class: s.cited ? 'cited' : ''}, [
+        el('a', {href: `/books/${s.book_id}/file#page=${s.page_number}`, target: '_blank', rel: 'noopener'},
+          `${s.title}, p.${s.page_number}`),
+        s.cited ? ' (cited)' : ' (read, not cited)',
+      ])));
+      sourceList.style.display = 'block';
+    } catch (err) {
+      answerBox.textContent = err.message;
+    } finally {
+      askBtn.disabled = false;
+      askBtn.textContent = 'Ask';
+    }
+  }
+  askBtn.addEventListener('click', ask);
+  askInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') ask(); });
+}
 
 // ---- per-book game reassignment ----
 const bookCheckboxes = () => Array.from(document.querySelectorAll('.book-select'));

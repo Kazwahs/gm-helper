@@ -88,10 +88,18 @@
     book), and the first run downloads EasyOCR's recognition models, so start with the test
     batch before committing to the whole library overnight.
   </p>
+  {% if not ocr_available %}
+    <p class="boxed-text" id="ocr-unavailable">
+      <strong>OCR isn't installed in this copy of GM Helper</strong> (missing: {{ ocr_missing | join(", ") }}).
+      Everything else works; scanned books just stay un-searchable. To enable it, install
+      <code>requirements-ocr.txt</code>, or switch to the full Docker image (the one without
+      <code>-slim</code> in its tag).
+    </p>
+  {% endif %}
   <div class="row" id="ocr-buttons">
-    <button id="ocr-test-btn" class="secondary">OCR a test batch (5 books)</button>
-    <button id="ocr-all-btn">OCR all remaining scanned books</button>
-    <button id="ocr-retry-btn" class="secondary">Retry failed OCR attempts</button>
+    <button id="ocr-test-btn" class="secondary" {% if not ocr_available %}disabled{% endif %}>OCR a test batch (5 books)</button>
+    <button id="ocr-all-btn" {% if not ocr_available %}disabled{% endif %}>OCR all remaining scanned books</button>
+    <button id="ocr-retry-btn" class="secondary" {% if not ocr_available %}disabled{% endif %}>Retry failed OCR attempts</button>
   </div>
 
   <div id="ocr-progress" style="display:none; margin-top:1rem;">
@@ -134,8 +142,17 @@
   <div class="row field-group">
     <div style="flex:1 1 260px;">
       <label class="field-label" for="ai-api-key">API key</label>
-      <input type="password" id="ai-api-key" class="input-wide" value="{{ ai_config.api_key }}"
-        placeholder="Leave blank for a local server with no auth" autocomplete="off">
+      <input type="password" id="ai-api-key" class="input-wide" value=""
+        placeholder="{% if ai_config.has_api_key %}A key is saved - leave blank to keep it{% else %}Leave blank for a local server with no auth{% endif %}"
+        autocomplete="new-password">
+      {% if ai_config.has_api_key %}
+        <label class="inline-check" style="margin-top:0.35rem;">
+          <input type="checkbox" id="ai-clear-key"> Remove the saved key
+        </label>
+        <div class="muted" style="font-size:0.85rem;">
+          The saved key is never shown here. If you change the provider or base URL, enter the key again.
+        </div>
+      {% endif %}
     </div>
     <div style="flex:1 1 220px;">
       <label class="field-label" for="ai-model">Model</label>
@@ -160,6 +177,35 @@
   </p>
 
   <div id="ai-result" class="result-box" style="display:none;"></div>
+</div>
+
+<div class="card" id="backup-card">
+  <h3>Backup</h3>
+  <p class="boxed-text">
+    Everything you create here - campaigns, maps, bookmarks, GM Screen cards, random tables, settings -
+    lives in one file, <code>gm_helper.db</code>, in your data folder. Your PDF files are never copied or changed.
+  </p>
+  <div class="row">
+    <a class="button-link" id="backup-user-data" href="/backup/user-data" download>Download my data (small)</a>
+    <a class="button-link" id="backup-full" href="/backup/full" download>Download full copy (large)</a>
+  </div>
+  <p class="muted" style="margin-top:0.75rem;">
+    <strong>My data</strong> is usually well under a few MB: it leaves out the book search index
+    (rebuilt with "Index new/changed books" after a restore) and your saved AI key.
+    <strong>Full copy</strong> is exactly what's on disk, search index included - it can be hundreds of MB,
+    and it <em>includes your saved AI API key</em>, so keep it private.
+  </p>
+  <details>
+    <summary>How to restore (Windows)</summary>
+    <ol>
+      <li>Stop GM Helper (in Docker: <code>docker compose down</code>).</li>
+      <li>In your data folder, rename the current <code>gm_helper.db</code> to <code>gm_helper.db.old</code>
+          and delete <code>gm_helper.db-wal</code> and <code>gm_helper.db-shm</code> if they exist.</li>
+      <li>Copy your backup into the data folder and rename it to exactly <code>gm_helper.db</code>.</li>
+      <li>Start GM Helper again. After restoring a "my data" backup, open this page and click
+          <em>Index new/changed books</em> to bring search back.</li>
+    </ol>
+  </details>
 </div>
 
 {% endblock %}
@@ -323,6 +369,7 @@ pollProgress();
 // ---- OCR ----
 const ocrResultBox = document.getElementById('ocr-result');
 const ocrButtons = document.getElementById('ocr-buttons');
+const ocrAvailable = {{ 'true' if ocr_available else 'false' }};
 const ocrProgressWrap = document.getElementById('ocr-progress');
 const ocrProgressFill = document.getElementById('ocr-progress-bar-fill');
 const ocrProgressLabel = document.getElementById('ocr-progress-label');
@@ -333,7 +380,7 @@ function showOcrResult(obj) {
 }
 
 function setOcrButtonsEnabled(enabled) {
-  ocrButtons.querySelectorAll('button').forEach(b => b.disabled = !enabled);
+  ocrButtons.querySelectorAll('button').forEach(b => b.disabled = !enabled || !ocrAvailable);
 }
 
 let ocrPollTimer = null;
@@ -414,6 +461,8 @@ function showAiResult(obj) {
   aiResultBox.textContent = JSON.stringify(obj, null, 2);
 }
 
+function aiClearKeyBox() { return document.getElementById('ai-clear-key'); }
+
 function markAiUntested() {
   aiStatus.innerHTML = '<span class="badge bad">Not tested</span> '
     + '<span class="muted">AI features stay hidden until a connection test succeeds.</span>';
@@ -425,6 +474,7 @@ document.getElementById('save-ai-btn').addEventListener('click', async () => {
       provider: aiProviderSelect.value,
       base_url: document.getElementById('ai-base-url').value,
       api_key: document.getElementById('ai-api-key').value,
+      clear_key: aiClearKeyBox() && aiClearKeyBox().checked ? 1 : 0,
       model: document.getElementById('ai-model').value,
     });
     markAiUntested();
@@ -446,6 +496,7 @@ document.getElementById('test-ai-btn').addEventListener('click', async (e) => {
       provider: aiProviderSelect.value,
       base_url: document.getElementById('ai-base-url').value,
       api_key: document.getElementById('ai-api-key').value,
+      clear_key: aiClearKeyBox() && aiClearKeyBox().checked ? 1 : 0,
       model: document.getElementById('ai-model').value,
     });
     const res = await postForm('/api/settings/ai/test', {});

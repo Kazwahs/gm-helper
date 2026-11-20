@@ -178,7 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
 -- GM Screen: a per-game (or "_global") board of quick-reference cards a GM
 -- keeps open during play, plus one freeform scratchpad for session-specific
 -- reminders. Cards start seeded with generic starter content the first time
--- a game's screen is opened (see gm_screen.DEFAULT_CARDS) but are fully
+-- a game's screen is opened (see gm_screen.SYSTEM_CARDS) but are fully
 -- editable/deletable/addable, since exactly which rules matter varies a lot
 -- by game system.
 CREATE TABLE IF NOT EXISTS gm_screen_cards (
@@ -190,6 +190,29 @@ CREATE TABLE IF NOT EXISTS gm_screen_cards (
     created_at  TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_gm_screen_cards_game_key ON gm_screen_cards(game_key);
+
+-- Random tables: a GM's own roll tables. `body` is the whole table as text,
+-- one entry per line ("1-3: text" or just "text"), so it edits like a note
+-- and imports/exports trivially. game_key "_global" tables show in every game.
+CREATE TABLE IF NOT EXISTS random_tables (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_key   TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    die        TEXT NOT NULL DEFAULT '',
+    body       TEXT NOT NULL DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_random_tables_game_key ON random_tables(game_key);
+
+CREATE TABLE IF NOT EXISTS random_roll_history (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_key   TEXT NOT NULL,
+    table_name TEXT NOT NULL,
+    roll       INTEGER,
+    text       TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_random_roll_history_game_key ON random_roll_history(game_key);
 
 CREATE TABLE IF NOT EXISTS gm_screen_notes (
     game_key TEXT PRIMARY KEY,
@@ -251,6 +274,16 @@ def init_db():
     _ensure_column("books", "ocr_attempted", "INTEGER DEFAULT 0")
     _ensure_column("books", "text_source", "TEXT")
     _ensure_column("maps", "original_svg", "TEXT")
+    # Fog-of-war state for the player view: {"enabled", "areas", "v"} as JSON.
+    _ensure_column("maps", "reveal_json", "TEXT")
+    # A GM Screen card can be a pinned book page (opens the PDF at that page).
+    _ensure_column("gm_screen_cards", "book_id", "INTEGER")
+    _ensure_column("gm_screen_cards", "page_number", "INTEGER")
+    # Campaign links: a location can point at a saved map; an NPC can belong
+    # to a faction and live at a location. SET NULL keeps deletes tidy.
+    _ensure_column("campaign_locations", "map_id", "INTEGER REFERENCES maps(id) ON DELETE SET NULL")
+    _ensure_column("campaign_npcs", "faction_id", "INTEGER REFERENCES campaign_factions(id) ON DELETE SET NULL")
+    _ensure_column("campaign_npcs", "location_id", "INTEGER REFERENCES campaign_locations(id) ON DELETE SET NULL")
 
     with get_cursor(commit=True) as cur:
         # Backfill: maps saved before hand-editing existed have no

@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Random Tables{% endblock %}
+{% block content %}
+<h1>Random Tables{% if game %} - {{ game.name }}{% endif %}</h1>
+<p class="muted">
+  Your own roll tables. One entry per line - <code>1-3: A wandering patrol</code> for a ranged table, or just
+  plain lines (they're numbered for you). Put <code>[[Another Table]]</code> in an entry to roll that table too, and
+  <code>{2d6}</code> to roll dice inline.
+</p>
+
+<div class="card">
+  <h3 style="margin-top:0;">New table</h3>
+  <form id="new-table-form" class="row">
+    <input type="text" name="name" placeholder="Table name" required style="min-width:220px;">
+    <input type="text" name="die" placeholder="Die (optional, e.g. d20)" style="width:11rem;">
+    {% if game %}<label class="inline-check"><input type="checkbox" name="everywhere"> In every game</label>{% endif %}
+    <button type="submit">Create</button>
+    <button type="button" id="import-btn" class="secondary"
+      title="Adds the built-in encounter and loot tables (and a worked example) as editable tables">Import built-in tables</button>
+  </form>
+  <p class="muted" id="tables-msg" role="status" style="margin-bottom:0;"></p>
+</div>
+
+<div id="tables-list" class="stack">
+  {% for t in tables %}
+    <div class="card table-card" data-id="{{ t.id }}">
+      <div class="row">
+        <input type="text" data-field="name" value="{{ t.name }}" style="flex:1; min-width:200px; font-weight:bold;">
+        <input type="text" data-field="die" value="{{ t.die }}" placeholder="die" title="Leave blank for plain lists" style="width:6rem;">
+        {% if t.game_key == global_key and game %}<span class="badge good" title="Available in every game">all games</span>{% endif %}
+        <button type="button" class="roll-btn">&#127922; Roll</button>
+        <button type="button" class="secondary delete-table-btn">Delete</button>
+      </div>
+      <textarea data-field="body" rows="7" spellcheck="false"
+        placeholder="1-2: First result&#10;3-4: Second result&#10;5-6: Third, with [[Another Table]] or {2d6} inside">{{ t.body }}</textarea>
+      <div class="table-info muted">
+        {% if t.error %}<span class="error-text">{{ t.error }}</span>
+        {% else %}{{ t.entry_count }} entr{{ "y" if t.entry_count == 1 else "ies" }} &middot; rolls {{ t.effective_die or "-" }}
+          {% for w in t.warnings %}<br>&#9888; {{ w }}{% endfor %}{% endif %}
+      </div>
+      <div class="roll-out" hidden>
+        <div class="result-box"></div>
+        <button type="button" class="secondary send-notes-btn">Send to session notes</button>
+      </div>
+    </div>
+  {% else %}
+    <p class="muted">No tables yet - create one above, or import the built-in ones to see how they look.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content: space-between;">
+    <h3 style="margin:0;">Recent rolls</h3>
+    <button type="button" id="clear-history-btn" class="secondary">Clear</button>
+  </div>
+  <ul id="history-list" class="history-list">
+    {% for h in history %}
+      <li><strong>{{ h.table_name }}</strong> <span class="muted">(rolled {{ h.roll }})</span>: {{ h.text }}</li>
+    {% else %}
+      <li class="muted" id="history-empty">Nothing rolled yet.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const gameKey = {{ (game_key or "") | tojson }};
+const msg = document.getElementById('tables-msg');
+const say = (t) => { msg.textContent = t || ''; };
+
+document.getElementById('new-table-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const f = e.target;
+  try {
+    await postForm('/api/tables', {
+      game: gameKey, name: f.name.value, die: f.die.value, everywhere: f.everywhere && f.everywhere.checked ? 1 : 0,
+    });
+    location.reload();
+  } catch (err) { say(err.message); }
+});
+
+document.getElementById('import-btn').addEventListener('click', async () => {
+  try {
+    const res = await postForm('/api/tables/import-builtin', {game: gameKey});
+    if (res.added) location.reload(); else say('The built-in tables are already here.');
+  } catch (err) { say(err.message); }
+});
+
+function addHistory(res) {
+  const list = document.getElementById('history-list');
+  const empty = document.getElementById('history-empty');
+  if (empty) empty.remove();
+  list.prepend(el('li', {}, [el('strong', {}, res.table), ' ', el('span', {class: 'muted'}, `(rolled ${res.roll})`), ': ' + res.text]));
+}
+
+function wireCard(card) {
+  const id = card.dataset.id;
+  const info = card.querySelector('.table-info');
+
+  card.querySelectorAll('[data-field]').forEach((field) => {
+    let timer = null;
+    const save = async () => {
+      try {
+        const t = await postForm(`/api/tables/${id}/update`, {field: field.dataset.field, value: field.value});
+        info.replaceChildren(document.createTextNode(
+          `${t.entry_count} entr${t.entry_count === 1 ? 'y' : 'ies'} \\u00b7 rolls ${t.effective_die || '-'}`));
+        t.warnings.forEach((w) => { info.appendChild(el('br')); info.appendChild(document.createTextNode('\\u26A0 ' + w)); });
+      } catch (err) {
+        info.replaceChildren(el('span', {class: 'error-text'}, err.message));
+      }
+    };
+    field.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(save, 600); });
+  });
+
+  card.querySelector('.roll-btn').addEventListener('click', async () => {
+    const out = card.querySelector('.roll-out');
+    const box = out.querySelector('.result-box');
+    try {
+      const res = await postForm(`/api/tables/${id}/roll`, {});
+      box.replaceChildren(el('strong', {}, `${res.die} \\u2192 ${res.roll}: `), document.createTextNode(res.text));
+      res.steps.forEach((s) => box.appendChild(el('div', {class: 'muted'}, `\\u21B3 ${s.table} (${s.roll}): ${s.text}`)));
+      out.dataset.text = res.text;
+      out.dataset.table = res.table;
+      out.hidden = false;
+      addHistory(res);
+    } catch (err) {
+      box.textContent = err.message;
+      out.dataset.text = '';
+      out.hidden = false;
+    }
+  });
+
+  card.querySelector('.send-notes-btn').addEventListener('click', async (e) => {
+    const out = card.querySelector('.roll-out');
+    if (!out.dataset.text) return;
+    try {
+      await postForm('/api/screen/notes/append', {game: gameKey || '_global', text: out.dataset.text, heading: out.dataset.table});
+      e.target.textContent = 'Sent \\u2713';
+    } catch (err) { say(err.message); }
+  });
+
+  card.querySelector('.delete-table-btn').addEventListener('click', async () => {
+    if (!confirm('Delete this table?')) return;
+    await postForm(`/api/tables/${id}/delete`, {});
+    card.remove();
+  });
+}
+document.querySelectorAll('.table-card').forEach(wireCard);
+
+document.getElementById('clear-history-btn').addEventListener('click', async () => {
+  await postForm('/api/tables/history/clear', {game: gameKey});
+  location.reload();
+});
+</script>
+{% endblock %}

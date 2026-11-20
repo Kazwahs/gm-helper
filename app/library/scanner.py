@@ -142,6 +142,16 @@ def game_summary():
     return {r["game_key"]: r["n"] for r in rows}
 
 
+def library_status():
+    """How far along the library is, for the home page's setup hint:
+    {"books": total, "indexed": books whose text is in the search index}."""
+    with database.get_cursor() as cur:
+        row = cur.execute(
+            "SELECT COUNT(*) AS books, COALESCE(SUM(CASE WHEN indexed = 1 THEN 1 ELSE 0 END), 0) AS indexed FROM books"
+        ).fetchone()
+    return {"books": row["books"], "indexed": row["indexed"]}
+
+
 def move_books_to_game(book_ids, target_key):
     """Reassigns specific books to a different game, individually - for a
     Series folder that's actually a mix (an anthology magazine, a reference

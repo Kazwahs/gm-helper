@@ -1,0 +1,53 @@
+{% extends "base_bare.html" %}
+{% block title %}{{ map.title }}{% endblock %}
+{% block body %}
+<div class="player-stage" id="player-stage" style="visibility:hidden;">{{ map.svg | safe }}</div>
+<div class="player-bar">
+  <span class="player-title">{{ map.title }}</span>
+  <span id="player-status" class="muted" role="status"></span>
+  <button type="button" id="fullscreen-btn" class="secondary">Full screen</button>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const mapId = {{ map.id }};
+const svg = document.querySelector('#player-stage svg');
+// Let the browser scale the map to the window instead of its fixed pixel size.
+svg.removeAttribute('width');
+svg.removeAttribute('height');
+
+const statusEl = document.getElementById('player-status');
+let lastVersion = null;
+
+function show(state) {
+  if (state.v === lastVersion) return;
+  lastVersion = state.v;
+  applyFog(svg, state, 1);
+  document.getElementById('player-stage').style.visibility = 'visible';
+}
+
+// The page is rendered with the current fog already in it (no flash of the
+// whole map), then re-checks the server every couple of seconds.
+show({{ reveal | tojson }});
+
+async function poll() {
+  try {
+    const res = await fetch(`/api/maps/${mapId}/reveal`, {cache: 'no-store'});
+    if (!res.ok) throw new Error('bad response');
+    show(await res.json());
+    statusEl.textContent = '';
+  } catch (e) {
+    statusEl.textContent = 'Reconnecting...';
+  }
+}
+setInterval(poll, 2500);
+
+document.getElementById('fullscreen-btn').addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen().catch(() => {});
+});
+document.addEventListener('fullscreenchange', () => {
+  document.querySelector('.player-bar').classList.toggle('hidden', !!document.fullscreenElement);
+});
+</script>
+{% endblock %}

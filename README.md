@@ -9,9 +9,12 @@ your own named collections with notes for session prep, flesh out a full
 **Campaign Planner** for each game, generate dungeons, buildings, cities,
 caves, and wilderness/world maps on the **Maps** tab, and use a dice roller,
 NPC generator, initiative tracker, and encounter/loot generator while you
-play. Point it at a local or hosted LLM in Settings and it also picks up a
-handful of AI-assisted tools - session recaps, NPC dialogue, and one-shot
-adventure generation - see **AI features** below. The auto-detected
+play - plus a **GM Screen** with per-system quick-reference cards, **random
+tables** you can roll (and chain together), and a **player view** for maps with
+fog of war. Point it at a local or hosted LLM in Settings and it also picks up a
+handful of AI-assisted tools - "Ask the Library" questions with page citations,
+campaign recaps and prep suggestions, session recaps, NPC dialogue, and
+one-shot adventure generation - see **AI features** below. The auto-detected
 Series-to-game grouping is just a starting guess - use
 **Manage Games** in the nav to rename a game, merge one game entirely into
 another, or move a single Series folder to a different game, all without
@@ -27,13 +30,21 @@ whole library.
 
 ## Running it on your PC (v1)
 
-```bash
-cd gm-helper
-pip install -r requirements.txt
-python run.py
+On Windows (Command Prompt or PowerShell), from the project folder:
+
+```bat
+cd C:\path\to\GM_Helper_App
+py -m pip install -r requirements.txt
+py run.py
 ```
 
-Then open http://localhost:8000 in a browser.
+On macOS/Linux use `python3` in place of `py`. Then open http://localhost:8000
+in a browser.
+
+`requirements.txt` is the core app only. OCR for scanned books is optional and
+pulls in PyTorch (a very large download), so it has its own file - run
+`py -m pip install -r requirements-ocr.txt` only if you want it. Without it
+everything else works and the Settings page tells you OCR isn't installed.
 
 On first run, go to **Settings** and enter the path to your library's root
 folder - the folder that contains your `Publisher/Series/...` book folders
@@ -44,7 +55,10 @@ time on a large library - subsequent scans only re-index books that changed.
 
 Older scanned PDFs with no embedded text layer will show up as "not
 searchable" in the Library view rather than silently returning no search
-results - OCR support may come later, but isn't part of v1.
+results - see **OCR for scanned books** below to make them searchable.
+
+Until a library folder is set, scanned and indexed, the home page shows a
+short "start here" card pointing at the next step.
 
 ## Which folders map to which "game"?
 
@@ -60,9 +74,46 @@ falls into "Unsorted / Other".
 ## Data storage
 
 Everything the app tracks (your library folder setting, the book index,
-saved NPCs, initiative-tracker state) lives in a single SQLite file,
+campaigns and their cast, maps, bookmarks, GM Screen cards and notes, random
+tables, initiative-tracker state) lives in a single SQLite file,
 `gm_helper.db`, created next to `run.py`. Nothing is written into your
-library folder itself - it's only ever read from.
+library folder itself - it's only ever read from. NPCs you roll on the NPC
+Generator aren't stored on their own; send one to a campaign's Cast to keep it.
+
+### Backups
+
+**Settings -> Backup** has two downloads, both consistent snapshots that are
+safe to take while the app is running:
+
+- **My data** - everything you created, minus the book search index and your
+  saved AI key. Usually well under a few MB.
+- **Full copy** - the database exactly as it is on disk. Can be hundreds of MB
+  because of the search index, and it **includes your saved AI API key**, so
+  keep it private.
+
+To restore on Windows: stop GM Helper, rename the current `gm_helper.db` (for
+example to `gm_helper.db.old`), delete `gm_helper.db-wal` and `gm_helper.db-shm`
+if they exist, copy your backup in and name it `gm_helper.db`, then start the
+app. After restoring a "My data" backup, click **Index new/changed books** on
+the Settings page to bring Library search back. Your PDFs are never part of a
+backup - they stay where they are.
+
+### Optional password
+
+By default there's no login (it's meant for your own machine or home network).
+To require one, set the `GM_HELPER_PASSWORD` environment variable before
+starting the app; every page, API call and static file then asks for a login
+(HTTP Basic). The username is `gm` unless you set `GM_HELPER_USER`.
+`/healthz` stays open so Docker's health check keeps working. In PowerShell:
+
+```powershell
+$env:GM_HELPER_PASSWORD = "pick-something-long"
+py run.py
+```
+
+Basic auth sends the password with every request, so use it on a trusted
+network or behind HTTPS (for example a reverse proxy) - it keeps casual
+visitors on your LAN out, it isn't a substitute for HTTPS on the open internet.
 
 ## Running in Docker (planned deployment path)
 
@@ -77,6 +128,18 @@ docker run -p 8000:8000 \
 Then set your library folder in Settings to `/library` (the path *inside*
 the container). The SQLite DB persists in the `gm-helper-data` volume so it
 survives container restarts/rebuilds.
+
+Two image variants are published to `ghcr.io/kazwahs/gm-helper`:
+
+| Variant | Tags | What it has |
+| --- | --- | --- |
+| full | `latest`, `1.2.3`, `sha-<commit>` | Everything, including EasyOCR/PyTorch for OCR |
+| slim | `latest-slim`, `1.2.3-slim`, `sha-<commit>-slim` | No OCR libraries - far smaller |
+
+To build the slim image yourself: `docker build --build-arg INSTALL_OCR=false -t gm-helper:slim .`
+The container has a health check that calls `/healthz` (it checks the database
+too), so `docker ps` shows `healthy` / `unhealthy`. Set `GM_HELPER_PASSWORD` in
+your `.env` to turn the password on (see above).
 
 **A note on OCR and GPUs under Docker:** EasyOCR's GPU acceleration is
 CUDA-only - it has no support for Intel Arc (or any non-NVIDIA) GPU, so if
@@ -118,6 +181,14 @@ campaign, laid out the way most GM prep and campaign-wiki tools converge on:
 Every field auto-saves as you edit it - there's no separate "save" step to
 remember. Deleting a campaign removes its threads, cast, factions,
 locations, sessions, and its materials collection along with it.
+
+Things in a campaign link to each other: an NPC can belong to one of the
+campaign's **factions** and live at one of its **locations**, and a location
+can be linked to one of your saved **maps** (with an "Open map" shortcut). A
+map belongs to one campaign's location at a time - linking it somewhere else
+moves it. **Export** (campaign page) downloads the whole campaign as a Markdown
+file, with a "player-safe" version that leaves out the GM-only parts (secrets,
+hidden motives, unrevealed threads) so you can hand it to your players.
 
 ## Maps
 
@@ -163,6 +234,25 @@ campaign's own Maps section) the same way a material can, though maps
 aren't deleted if their campaign is later deleted - only detached. Every
 map can be downloaded as SVG (scales to any size, editable in Inkscape/etc.)
 or PNG straight from the browser.
+
+### Player view, fog of war and printing
+
+Each saved map has three extra ways to put it in front of players:
+
+- **Player view** opens a clean full-screen page (no GM controls) you can put
+  on a second monitor or TV. With **fog of war** switched on, the map starts
+  covered; on the GM's page you reveal **circles** or **rooms** by clicking,
+  with **Undo** and **Clear**, and the player page updates by itself within a
+  couple of seconds.
+- **Print** lays the map out on paper: choose paper size, orientation, margins
+  and how many inches each grid square should be. A map bigger than one sheet
+  is split into tiles you tape together, and an optional grid overlay helps
+  when the generator's own grid is faint. For dungeon, interior, urban and
+  underground maps the generator's square size is known, so the scale is
+  exact; for other map types it's an estimate.
+- Fog is a **visual cover only**. It hides the map on screen, but the full map
+  is still in the page's source, so a player who knows how to "View Source"
+  could see it. Use it at the table, not as a secret-keeper.
 
 ### Editing a saved map
 
@@ -218,7 +308,23 @@ specific toolkit or driver stack beyond the GPU itself being visible to
 the container (`--device /dev/dri` is normally all it takes). See the
 provider dropdown's inline hints in Settings for endpoint URL conventions.
 
-Once verified, three tools light up:
+Your saved API key is never sent back to the browser: the Settings page just
+says a key is saved (leave the box blank to keep it, or tick "Remove the saved
+key"). If you point GM Helper at a different provider or URL and leave the key
+box blank, the old key is dropped rather than sent to the new host.
+
+Once verified, these tools light up:
+
+- **Ask the Library** (Library page) - type a question in plain English and
+  GM Helper finds the most relevant pages across the library, sends a handful
+  of excerpts to your model, and shows the answer with `[1]`, `[2]`... citations
+  that link to the exact book pages. It only answers from those excerpts, so
+  if the library doesn't cover the question it should say so rather than make
+  something up - check the cited pages for anything important.
+- **Campaign recap and prep suggestions** (campaign page) - "Recap" summarises
+  the last few played sessions; "Suggest prep" proposes a strong opening, scenes
+  and secrets/clues for the next one, and each can be applied to the session
+  with one click.
 
 - **Session recap** (GM Screen) - the "Summarize last session" button reads
   that game's session notes and writes a short "Previously on..." recap to
@@ -242,14 +348,61 @@ OpenAI-compatible endpoints to skip that pass (`reasoning_effort: "none"`)
 so responses come back promptly; a server that doesn't recognize that
 field just ignores it.
 
+## GM Screen
+
+The **GM Screen** is a page of quick-reference cards plus a notes pad, kept
+per game. Cards are seeded for the game's system the first time you open it
+(d20/5e, Palladium, Savage Worlds, Forged in the Dark, or a generic set) along
+with a Session Checklist and a "Rulings at the Table" card. Every card is
+editable and supports simple Markdown (bold, italics, lists, headings, links),
+with a view/edit toggle and a large-text switch for reading at arm's length.
+
+- **+ Starter cards** adds any default cards you've deleted or that a newer
+  version added, without touching the ones you've edited.
+- **Pin to screen** (on any Library search hit) makes a card that links
+  straight to that book page, with a note.
+- Encounter and loot results can be sent to the session notes with one click.
+
+## Library search and Ask the Library
+
+Search is full-text across every indexed book, 20 results per page, grouped
+by book. A plain query matches pages containing **all** the words and falls
+back to **any** of them if nothing matches; the page tells you which it did.
+Quotes (`"red dragon"`) match an exact phrase, and word endings are handled
+for you (searching `dragon` also finds `dragons`). Anything you type is treated
+as plain text, so punctuation can't break the search. Each hit can be
+bookmarked or pinned to the GM Screen.
+"Ask the Library" (see **AI features**) builds on the same search.
+
+## Random tables
+
+**Tools -> Random Tables** holds tables you can roll on: name, a die (`d6`,
+`d100`, `2d6`...), and one line per entry. Write ranges with a colon
+(`1-3: Goblins`) or just list lines and they're numbered for you. Entries can
+include `[[Another Table]]` to roll on that table too (looked up in the game
+first, then in tables shared by every game; loops are cut off) and `{2d6}` for
+an inline dice roll. A warning shows if the ranges leave gaps or overlap. The
+last 50 rolls are kept, and **Import built-in tables** adds the encounter and
+loot tables from the Encounter Generator (plus a worked example) as ordinary
+tables you can edit.
+
 ## Project layout
 
 ```
 app/
-  main.py              FastAPI routes
+  main.py              app setup (lifespan, middleware, router wiring)
+  web.py               shared templates + page context
+  routers/             one module per area: dashboard, settings, games, library,
+                         bookmarks, campaigns, maps, screen, tools, tables, ops
   config.py            static paths / defaults
   database.py          SQLite schema + helpers
+  security.py          optional password (HTTP Basic) middleware
+  backup.py            "my data" / full database snapshots
+  gm_screen.py         GM Screen cards, per-system defaults, pins, notes
+  random_tables.py     random tables, rolling, [[chaining]], history
   campaigns.py          campaign planner (threads, cast, factions, locations, sessions, materials)
+  campaign_ai.py        AI recap / prep suggestions for a campaign
+  campaign_export.py    campaign -> Markdown (with a player-safe version)
   bookmarks.py           bookmark collections + notes, shared with the campaign planner
   maps_store.py          saved-map CRUD + campaign attachment
   llm.py                 optional AI client (OpenAI-compatible / Anthropic) + the
@@ -269,6 +422,7 @@ app/
     indexer.py            extracts embedded PDF text into the FTS5 search index
     ocr.py                 OCRs scanned (image-only) PDFs via EasyOCR + PyMuPDF
     search.py              full-text search queries
+    ask.py                  "Ask the Library": retrieval + cited LLM answer
   tools/
     dice.py, npc_generator.py, initiative.py, encounters.py
   data/
@@ -284,6 +438,10 @@ section for those: it renders each page as an image (PyMuPDF) and reads the
 text off it (EasyOCR), then feeds that text into the same search index
 normal indexing uses - your PDF files on disk are never modified,
 overwritten, or duplicated by this.
+
+OCR is an optional install: `py -m pip install -r requirements-ocr.txt`
+(or use the full Docker image rather than the `-slim` one). Without it the
+Settings buttons are disabled with a note saying what's missing.
 
 A few things worth knowing before running it on a whole library:
 - **It's slow.** Normal indexing is seconds per *book*; OCR is more like
@@ -308,11 +466,13 @@ A few things worth knowing before running it on a whole library:
 
 ## Running the tests
 
-There's a pytest suite covering the pure-logic pieces of the app: the dice
-parser, all the map-generation logic (room layout, minimum-spanning-tree
-corridors, name/biome content, SVG output), the campaign planner, bookmarks,
-the saved-maps store, the database schema/migration logic, and the
-games.json series-to-game mapping used by the Manage Games page.
+There's a pytest suite (several hundred tests) covering the pure-logic
+pieces of the app and the web routes: the dice parser, all the map-generation
+logic, the campaign planner and its exports, bookmarks, the saved-maps store
+(including fog of war), the GM Screen, random tables, library search and Ask
+the Library, backups, the optional password, the database schema/migration
+logic, and the games.json series-to-game mapping. Every page has a smoke test
+that checks it still renders.
 
 Install the dev dependencies (this is a separate file so pytest doesn't end
 up in the production Docker image) and run:
@@ -327,9 +487,11 @@ temp `games.json`, created fresh per test and thrown away afterward - the
 suite never reads or writes your real `gm_helper.db` or
 `app/data/games.json`, so it's always safe to run.
 
-This suite doesn't drive the web pages themselves (no Selenium/Playwright
-browser tests are included here), so after any change that touches routes
-or templates it's still worth clicking through the affected pages by hand.
+The suite checks what the server sends but doesn't run the pages' JavaScript
+(no Selenium/Playwright browser tests), so fog of war, print tiling, the
+GM Screen toggles and the nav menu still need a quick click-through by hand
+after changes to them. GitHub Actions runs the tests before every Docker image
+build.
 
 ## Known limitations (v1)
 
@@ -337,4 +499,9 @@ or templates it's still worth clicking through the affected pages by hand.
 - OCR output quality varies with scan quality and page layout (see above);
   it isn't a substitute for a clean embedded text layer.
 - Initiative tracker keeps one active encounter per game at a time.
-- Single-user, no auth - intended for a GM's own machine or trusted network.
+- Fog of war on the player view is visual only (the full map is in the page
+  source) - fine at the table, not a way to keep a map truly secret.
+- "Ask the Library" is only as good as the model you connect and the text
+  that was extracted; always check the cited pages for rules you'll rely on.
+- Single-user. The optional password is basic protection for a trusted
+  network, not multi-user accounts.

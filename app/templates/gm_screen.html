@@ -4,6 +4,7 @@
 <h1>GM Screen{% if game %} - {{ game.name }}{% endif %}</h1>
 <p class="muted">
   Quick references and session notes to keep open while you run the table.
+  Cards use simple Markdown (<code>**bold**</code>, <code>- lists</code>) - click <strong>Edit</strong> to change one.
   {% if not game %}Pick a game from the home page for system-specific cards.{% endif %}
 </p>
 
@@ -29,21 +30,41 @@
 
 <div class="row" style="justify-content: space-between; align-items: center; margin-top: 1rem;">
   <h3 style="margin:0;">Reference cards</h3>
-  <button type="button" id="add-card-btn" class="secondary">+ Add card</button>
+  <div class="row" style="gap:0.5rem;">
+    <label class="inline-check" title="Bigger text, easier to read from across the table">
+      <input type="checkbox" id="large-text-toggle"> Large text
+    </label>
+    <button type="button" id="add-missing-btn" class="secondary"
+      title="Adds any starter card for this game's system that isn't on the screen yet">+ Starter cards</button>
+    <button type="button" id="add-card-btn" class="secondary">+ Add card</button>
+  </div>
 </div>
+<p id="screen-msg" class="muted" role="status"></p>
 
 <div class="screen-cards-grid" id="cards-grid">
   {% for card in cards %}
-    <div class="screen-card" data-id="{{ card.id }}">
+    <div class="screen-card{% if card.book_id %} screen-card-pinned{% endif %}" data-id="{{ card.id }}">
       <div class="screen-card-head">
         <input type="text" class="screen-card-title" data-field="title" value="{{ card.title }}">
         <div class="screen-card-actions">
+          <button type="button" class="icon-btn edit-card-btn" title="Edit text">&#9998;</button>
           <button type="button" class="icon-btn move-up-btn" title="Move up">&uarr;</button>
           <button type="button" class="icon-btn move-down-btn" title="Move down">&darr;</button>
           <button type="button" class="icon-btn delete-card-btn" title="Delete card">&times;</button>
         </div>
       </div>
-      <textarea class="screen-card-body" data-field="body" rows="8">{{ card.body }}</textarea>
+      {% if card.book_id %}
+        <div class="screen-card-pin">
+          {% if card.book_title %}
+            <a href="/books/{{ card.book_id }}/file{% if card.page_number %}#page={{ card.page_number }}{% endif %}"
+               target="_blank" rel="noopener">Open{% if card.page_number %} p.{{ card.page_number }}{% endif %} in {{ card.book_title }}</a>
+          {% else %}
+            <span class="muted">That book is no longer in the library.</span>
+          {% endif %}
+        </div>
+      {% endif %}
+      <div class="screen-card-view md"></div>
+      <textarea class="screen-card-body" data-field="body" rows="8" hidden>{{ card.body }}</textarea>
     </div>
   {% endfor %}
 </div>
@@ -56,7 +77,7 @@ document.getElementById('session-notes').addEventListener('change', async (e) =>
   try {
     await postForm('/api/screen/notes', {game: gameKey, body: e.target.value});
   } catch (err) {
-    alert(err.message);
+    document.getElementById('screen-msg').textContent = err.message;
   }
 });
 
@@ -81,16 +102,44 @@ if (recapBtn) {
   });
 }
 
+const screenMsg = document.getElementById('screen-msg');
+function say(text) { screenMsg.textContent = text || ''; }
+
+function refreshView(cardEl) {
+  const view = cardEl.querySelector('.screen-card-view');
+  const body = cardEl.querySelector('.screen-card-body').value;
+  view.replaceChildren(renderMarkdown(body));
+  view.classList.toggle('empty', !body.trim());
+  if (!body.trim()) view.textContent = 'Empty - click Edit to add text.';
+}
+
+function setEditing(cardEl, editing) {
+  const view = cardEl.querySelector('.screen-card-view');
+  const ta = cardEl.querySelector('.screen-card-body');
+  ta.hidden = !editing;
+  view.hidden = editing;
+  cardEl.classList.toggle('editing', editing);
+  cardEl.querySelector('.edit-card-btn').textContent = editing ? '\u2713' : '\u270E';
+  cardEl.querySelector('.edit-card-btn').title = editing ? 'Done editing' : 'Edit text';
+  if (editing) ta.focus(); else refreshView(cardEl);
+}
+
 function wireCard(cardEl) {
   const id = cardEl.dataset.id;
   cardEl.querySelectorAll('[data-field]').forEach((field) => {
     field.addEventListener('change', async () => {
       try {
         await postForm(`/api/screen/cards/${id}`, {field: field.dataset.field, value: field.value});
+        say('');
       } catch (err) {
-        alert(err.message);
+        say(err.message);
       }
     });
+  });
+  const ta = cardEl.querySelector('.screen-card-body');
+  refreshView(cardEl);
+  cardEl.querySelector('.edit-card-btn').addEventListener('click', () => {
+    setEditing(cardEl, ta.hidden);
   });
   cardEl.querySelector('.move-up-btn').addEventListener('click', async () => {
     await postForm(`/api/screen/cards/${id}/move`, {direction: 'up'});
@@ -116,23 +165,48 @@ document.getElementById('add-card-btn').addEventListener('click', async () => {
   try {
     card = await postForm('/api/screen/cards', {game: gameKey, title, body: ''});
   } catch (err) {
-    alert(err.message);
+    say(err.message);
     return;
   }
   const div = el('div', {class: 'screen-card', 'data-id': card.id}, [
     el('div', {class: 'screen-card-head'}, [
       el('input', {type: 'text', class: 'screen-card-title', 'data-field': 'title', value: card.title}),
       el('div', {class: 'screen-card-actions'}, [
+        el('button', {type: 'button', class: 'icon-btn edit-card-btn', title: 'Edit text', html: '&#9998;'}),
         el('button', {type: 'button', class: 'icon-btn move-up-btn', title: 'Move up', html: '&uarr;'}),
         el('button', {type: 'button', class: 'icon-btn move-down-btn', title: 'Move down', html: '&darr;'}),
         el('button', {type: 'button', class: 'icon-btn delete-card-btn', title: 'Delete card', html: '&times;'}),
       ]),
     ]),
-    el('textarea', {class: 'screen-card-body', 'data-field': 'body', rows: '8'}),
+    el('div', {class: 'screen-card-view md'}),
+    el('textarea', {class: 'screen-card-body', 'data-field': 'body', rows: '8', hidden: ''}),
   ]);
   document.getElementById('cards-grid').appendChild(div);
   wireCard(div);
-  div.querySelector('.screen-card-body').focus();
+  setEditing(div, true);
+});
+
+document.getElementById('add-missing-btn').addEventListener('click', async () => {
+  try {
+    const res = await postForm('/api/screen/add-missing', {game: gameKey});
+    if (res.added) location.reload();
+    else say("You already have all of this game's starter cards.");
+  } catch (err) {
+    say(err.message);
+  }
+});
+
+// Large-text mode is a per-browser display preference, so it lives in
+// localStorage (wrapped - storage can be blocked) rather than the database.
+const largeToggle = document.getElementById('large-text-toggle');
+function applyLarge(on) {
+  document.getElementById('cards-grid').classList.toggle('large-text', on);
+  largeToggle.checked = on;
+}
+try { applyLarge(localStorage.getItem('gmScreenLarge') === '1'); } catch (e) { /* ignore */ }
+largeToggle.addEventListener('change', () => {
+  applyLarge(largeToggle.checked);
+  try { localStorage.setItem('gmScreenLarge', largeToggle.checked ? '1' : '0'); } catch (e) { /* ignore */ }
 });
 </script>
 {% endblock %}

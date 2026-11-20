@@ -213,3 +213,58 @@ def test_non_json_response_raises_llm_error(db, monkeypatch):
     result = llm.test_connection()
     assert result["ok"] is False
     assert "JSON" in result["error"]
+
+
+# ---- saved API key handling (the key is never sent back to the browser) ----
+
+def test_get_public_config_has_no_key_but_says_whether_one_is_saved(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    public = llm.get_public_config()
+    assert "api_key" not in public
+    assert public["has_api_key"] is True
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "", "m", clear_key=True)
+    assert llm.get_public_config()["has_api_key"] is False
+
+
+def test_blank_key_keeps_saved_key_when_endpoint_unchanged(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    llm.save_config("openai_compatible", "http://localhost:11434/v1/", "", "other-model")
+    config = llm.get_config()
+    assert config["api_key"] == "secret"
+    assert config["model"] == "other-model"
+
+
+def test_blank_key_is_dropped_when_base_url_changes(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    llm.save_config("openai_compatible", "http://somewhere-else:8000/v1", "", "m")
+    assert llm.get_config()["api_key"] == ""
+
+
+def test_blank_key_is_dropped_when_provider_changes(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    llm.save_config("anthropic", "", "", "claude-sonnet-4-5")
+    assert llm.get_config()["api_key"] == ""
+
+
+def test_new_key_replaces_saved_key(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "old", "m")
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "new", "m")
+    assert llm.get_config()["api_key"] == "new"
+
+
+def test_clear_key_removes_it_even_if_a_new_one_is_typed(db):
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "typed", "m", clear_key=True)
+    assert llm.get_config()["api_key"] == ""
+
+
+def test_saving_with_kept_key_still_requires_a_new_test(db, monkeypatch):
+    monkeypatch.setattr(
+        llm.urllib.request, "urlopen",
+        _fake_urlopen(b'{"choices":[{"message":{"content":"OK"}}]}'),
+    )
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "secret", "m")
+    assert llm.test_connection()["ok"] is True
+    llm.save_config("openai_compatible", "http://localhost:11434/v1", "", "m")
+    assert llm.get_config()["api_key"] == "secret"
+    assert llm.is_enabled() is False

@@ -2,8 +2,23 @@
 {% block title %}GM Helper - Choose a Game{% endblock %}
 {% block content %}
 <h1>Choose a game</h1>
-{% if needs_setup %}
-  <p class="muted">Once your library folder is set and scanned, your games will show book counts here.</p>
+{% if setup_hint == "set_folder" %}
+  <div class="card" id="setup-hint">
+    <strong>Start here:</strong> tell GM Helper where your books live.
+    <a href="/settings">Open Settings</a>, set the library folder, then click <em>Scan library</em>.
+    Your games will show book counts here once that's done.
+  </div>
+{% elif setup_hint == "scan" %}
+  <div class="card" id="setup-hint">
+    <strong>Your library folder is set, but no books have been found yet.</strong>
+    Open <a href="/settings">Settings</a> and click <em>Scan library</em>
+    (and check that the folder path is the one you meant).
+  </div>
+{% elif setup_hint == "index" %}
+  <div class="card" id="setup-hint">
+    <strong>{{ library_status.books }} book{{ 's' if library_status.books != 1 else '' }} found, but none are searchable yet.</strong>
+    Open <a href="/settings">Settings</a> and click <em>Index new/changed books</em> so the Library search can look inside them.
+  </div>
 {% endif %}
 
 <div class="toolbar">

@@ -7,68 +7,124 @@
   <h3>Add combatant</h3>
   <form id="add-form" class="row">
     <input type="text" id="c-name" placeholder="Name" required>
-    <input type="number" id="c-init" placeholder="Initiative" required style="width:110px;">
+    <input type="text" id="c-init" placeholder="Init: 14 or 1d20+3" required style="width:150px;" autocomplete="off">
     <input type="number" id="c-hp" placeholder="HP (optional)" style="width:130px;">
+    <input type="number" id="c-qty" value="1" min="1" max="30" title="How many copies" style="width:70px;">
     <label class="row"><input type="checkbox" id="c-pc"> PC</label>
     <button type="submit">Add</button>
   </form>
+  <p class="muted" style="margin-bottom:0;">
+    Initiative can be a number or a dice roll. Adding several at once (<em>Goblin</em> &times; 4)
+    numbers them and rolls each one separately.
+  </p>
 </div>
 
 <div class="card">
   <div class="row" style="justify-content: space-between;">
-    <h3 id="round-label">Round 1</h3>
+    <h3 id="round-label" style="margin:0;">Round 1</h3>
     <div class="row">
-      <button id="next-btn">Next Turn</button>
-      <button id="reset-btn" class="danger">Reset</button>
+      <button id="next-btn" title="Shortcut: N">Next Turn</button>
+      <button id="clear-foes-btn" class="secondary" title="Remove every non-PC and go back to round 1">Clear foes</button>
+      <button id="reset-btn" class="secondary danger">Reset</button>
     </div>
   </div>
+  <div id="init-error" class="muted" style="color: var(--bad); min-height:1.2em;"></div>
   <div class="table-scroll">
   <table>
-    <thead><tr><th>Init</th><th>Name</th><th>HP</th><th></th></tr></thead>
+    <thead><tr><th>Init</th><th>Name</th><th>HP</th><th>Conditions</th><th></th></tr></thead>
     <tbody id="combatant-rows"></tbody>
   </table>
   </div>
 </div>
+
+<datalist id="condition-list">
+  {% for c in condition_suggestions %}<option value="{{ c }}">{% endfor %}
+</datalist>
 {% endblock %}
 {% block scripts %}
 <script>
 const gameKey = {{ (game_key or "_global") | tojson }};
+const errorBox = document.getElementById('init-error');
+
+async function act(url, data) {
+  errorBox.textContent = '';
+  try {
+    renderState(await postForm(url, Object.assign({game: gameKey}, data)));
+  } catch (err) {
+    errorBox.textContent = err.message;
+  }
+}
+
+function hpCell(c) {
+  if (c.hp === null || c.hp === undefined) return el('span', {class: 'muted'}, '-');
+  const amount = el('input', {type: 'number', min: '1', placeholder: '1', class: 'hp-amount', title: 'Amount'});
+  const amt = () => Math.max(1, parseInt(amount.value || '1', 10) || 1);
+  const dmg = el('button', {class: 'secondary hp-btn', type: 'button', title: 'Damage'}, '−');
+  const heal = el('button', {class: 'secondary hp-btn', type: 'button', title: 'Heal'}, '+');
+  dmg.addEventListener('click', () => act('/api/initiative/hp', {combatant_id: c.id, delta: -amt()}));
+  heal.addEventListener('click', () => act('/api/initiative/hp', {combatant_id: c.id, delta: amt()}));
+  const label = el('strong', {class: c.down ? 'hp-down' : ''}, `${c.hp}${c.max_hp !== null && c.max_hp !== undefined ? '/' + c.max_hp : ''}`);
+  return el('div', {class: 'row', style: 'gap:0.3rem; flex-wrap:nowrap;'}, [dmg, amount, heal, label]);
+}
+
+function conditionsCell(c) {
+  const wrap = el('div', {class: 'row', style: 'gap:0.3rem;'});
+  c.conditions.forEach((cond) => {
+    const chip = el('span', {class: 'chip'}, [
+      cond.rounds ? `${cond.name} (${cond.rounds})` : cond.name,
+    ]);
+    const x = el('button', {class: 'chip-x', type: 'button', title: 'Remove condition'}, '×');
+    x.addEventListener('click', () => act('/api/initiative/condition/remove', {combatant_id: c.id, name: cond.name}));
+    chip.appendChild(x);
+    wrap.appendChild(chip);
+  });
+  const name = el('input', {type: 'text', list: 'condition-list', placeholder: '+ condition', class: 'cond-input'});
+  const rounds = el('input', {type: 'number', min: '1', placeholder: 'rds', class: 'cond-rounds', title: 'Rounds (blank = until removed)'});
+  const add = () => {
+    if (!name.value.trim()) return;
+    act('/api/initiative/condition', {combatant_id: c.id, name: name.value, rounds: rounds.value});
+  };
+  name.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  rounds.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  name.addEventListener('change', add);
+  wrap.appendChild(name);
+  wrap.appendChild(rounds);
+  return wrap;
+}
 
 function renderState(state) {
   document.getElementById('round-label').textContent = `Round ${state.round}`;
   const tbody = document.getElementById('combatant-rows');
   tbody.innerHTML = '';
   if (!state.combatants.length) {
-    tbody.appendChild(el('tr', {}, el('td', {colspan: '4', class: 'muted'}, 'No combatants yet.')));
+    tbody.appendChild(el('tr', {}, el('td', {colspan: '5', class: 'muted'}, 'No combatants yet.')));
     return;
   }
-  state.combatants.forEach(c => {
+  state.combatants.forEach((c) => {
     const isCurrent = c.id === state.current_id;
-    const hpCell = c.hp !== null && c.hp !== undefined
-      ? el('span', {}, [
-          el('button', {class: 'secondary', style: 'padding:0.15rem 0.5rem;'}, '-'),
-          document.createTextNode(` ${c.hp}${c.max_hp ? '/' + c.max_hp : ''} `),
-          el('button', {class: 'secondary', style: 'padding:0.15rem 0.5rem;'}, '+'),
-        ])
-      : el('span', {class: 'muted'}, '-');
-
-    const row = el('tr', {class: isCurrent ? 'current-turn' : ''}, [
-      el('td', {}, String(c.initiative)),
-      el('td', {}, `${c.name}${c.is_pc ? ' (PC)' : ''}`),
-      el('td', {}, hpCell),
-      el('td', {}, el('button', {class: 'secondary'}, 'Remove')),
-    ]);
-
-    if (c.hp !== null && c.hp !== undefined) {
-      const buttons = hpCell.querySelectorAll('button');
-      buttons[0].addEventListener('click', async () => renderState(await postForm('/api/initiative/hp', {game: gameKey, combatant_id: c.id, delta: -1})));
-      buttons[1].addEventListener('click', async () => renderState(await postForm('/api/initiative/hp', {game: gameKey, combatant_id: c.id, delta: 1})));
-    }
-    row.querySelector('td:last-child button').addEventListener('click', async () => {
-      renderState(await postForm('/api/initiative/remove', {game: gameKey, combatant_id: c.id}));
+    const initInput = el('input', {type: 'text', value: String(c.initiative), class: 'init-input', title: 'Edit initiative'});
+    initInput.addEventListener('change', () => {
+      if (initInput.value.trim() !== String(c.initiative)) {
+        act('/api/initiative/set', {combatant_id: c.id, initiative: initInput.value});
+      }
     });
 
-    tbody.appendChild(row);
+    const nameCell = el('td', {}, [
+      el('span', {class: c.down ? 'combatant-down' : ''}, c.name),
+      c.is_pc ? el('span', {class: 'badge good', style: 'margin-left:0.4rem;'}, 'PC') : null,
+      isCurrent ? el('span', {class: 'badge', style: 'margin-left:0.4rem; background:var(--accent); color:var(--accent-text);'}, 'up') : null,
+    ]);
+
+    const remove = el('button', {class: 'secondary', type: 'button'}, 'Remove');
+    remove.addEventListener('click', () => act('/api/initiative/remove', {combatant_id: c.id}));
+
+    tbody.appendChild(el('tr', {class: isCurrent ? 'current-turn' : ''}, [
+      el('td', {}, initInput),
+      nameCell,
+      el('td', {}, hpCell(c)),
+      el('td', {}, conditionsCell(c)),
+      el('td', {}, remove),
+    ]));
   });
 }
 
@@ -79,22 +135,38 @@ async function refresh() {
 
 document.getElementById('add-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const name = document.getElementById('c-name').value;
-  const initiative = document.getElementById('c-init').value;
+  const data = {
+    name: document.getElementById('c-name').value,
+    initiative: document.getElementById('c-init').value,
+    is_pc: document.getElementById('c-pc').checked,
+    quantity: document.getElementById('c-qty').value || '1',
+  };
   const hp = document.getElementById('c-hp').value;
-  const isPc = document.getElementById('c-pc').checked;
-  const data = {game: gameKey, name, initiative, is_pc: isPc};
   if (hp) data.hp = hp;
-  renderState(await postForm('/api/initiative/add', data));
-  e.target.reset();
+  await act('/api/initiative/add', data);
+  if (!errorBox.textContent) {
+    // keep the PC box and quantity sticky-friendly: clear only name/init/hp
+    document.getElementById('c-name').value = '';
+    document.getElementById('c-init').value = '';
+    document.getElementById('c-hp').value = '';
+    document.getElementById('c-qty').value = '1';
+    document.getElementById('c-name').focus();
+  }
 });
 
-document.getElementById('next-btn').addEventListener('click', async () => {
-  renderState(await postForm('/api/initiative/next', {game: gameKey}));
+document.getElementById('next-btn').addEventListener('click', () => act('/api/initiative/next', {}));
+document.getElementById('clear-foes-btn').addEventListener('click', () => {
+  if (confirm('Remove every non-PC combatant and go back to round 1?')) act('/api/initiative/clear-foes', {});
 });
-document.getElementById('reset-btn').addEventListener('click', async () => {
-  if (confirm('Clear all combatants and reset to round 1?')) {
-    renderState(await postForm('/api/initiative/reset', {game: gameKey}));
+document.getElementById('reset-btn').addEventListener('click', () => {
+  if (confirm('Clear ALL combatants (PCs too) and reset to round 1?')) act('/api/initiative/reset', {});
+});
+
+document.addEventListener('keydown', (e) => {
+  if ((e.key === 'n' || e.key === 'N') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+    act('/api/initiative/next', {});
   }
 });
 

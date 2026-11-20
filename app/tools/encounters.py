@@ -14,6 +14,15 @@ def environments():
     return list(_DATA["environments"].keys())
 
 
+def encounter_environments():
+    """{environment: [encounter, ...]} - used to import these as random tables."""
+    return {name: list(options) for name, options in _DATA["environments"].items()}
+
+
+def loot_rarity_table():
+    return [dict(entry) for entry in _DATA["loot"]["item_rarity_table"]]
+
+
 def generate_encounter(environment):
     options = _DATA["environments"].get(environment)
     if not options:

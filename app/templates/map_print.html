@@ -1,0 +1,145 @@
+{% extends "base_bare.html" %}
+{% block title %}Print - {{ map.title }}{% endblock %}
+{% block head %}
+<style id="page-style"></style>
+<style>
+  body.bare { background: var(--bg); }
+  .print-controls { max-width: 900px; margin: 1rem auto; padding: 1rem; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; }
+  .print-controls label { display: inline-flex; align-items: center; gap: 0.4rem; margin-right: 1rem; }
+  .print-controls input[type=number] { width: 5rem; }
+  .print-summary { margin-top: 0.75rem; font-weight: bold; }
+  .print-pages { display: flex; flex-direction: column; align-items: center; }
+  .print-page { background: #fff; color: #000; position: relative; margin: 0.75rem 0; box-shadow: 0 0 6px rgba(0,0,0,0.4); break-after: page; page-break-after: always; overflow: hidden; }
+  .print-page:last-child { break-after: auto; page-break-after: auto; }
+  .print-tile { position: absolute; outline: 1px dashed #888; line-height: 0; }
+  .print-tile svg { display: block; }
+  .tile-label { position: absolute; font: 10px sans-serif; color: #444; }
+  @media screen { .print-pages { zoom: 0.55; } }
+  @media print {
+    body.bare { background: #fff; }
+    .print-controls { display: none !important; }
+    .print-page { margin: 0; box-shadow: none; }
+  }
+</style>
+{% endblock %}
+{% block body %}
+<div class="print-controls">
+  <h2 style="margin-top:0;">Print to scale: {{ map.title }}</h2>
+  <p class="muted">
+    Splits the map across pages so each grid square prints at the size you choose - 1 inch for standard miniatures.
+    Print at <strong>100% / "Actual size"</strong> (not "fit to page"), then trim the white margins and tape the pages together.
+    {% if not has_grid %}This map type has no grid of its own, so choose how many map pixels make one square.{% endif %}
+  </p>
+  <div class="row">
+    <label>Paper
+      <select id="paper"><option value="letter">US Letter</option><option value="a4">A4</option><option value="legal">US Legal</option></select>
+    </label>
+    <label>Orientation
+      <select id="orientation"><option value="landscape">Landscape</option><option value="portrait">Portrait</option></select>
+    </label>
+    <label>Margin (in) <input type="number" id="margin" value="0.4" min="0" max="2" step="0.05"></label>
+  </div>
+  <div class="row" style="margin-top:0.5rem;">
+    <label>Square size (in) <input type="number" id="inches" value="1" min="0.25" max="4" step="0.05"></label>
+    <label>Map pixels per square <input type="number" id="pxsq" value="{{ grid_px }}" min="1" max="500" step="1"></label>
+    <label><input type="checkbox" id="overlay"> Draw a grid on top</label>
+    <button type="button" id="print-btn">Print</button>
+  </div>
+  <div class="print-summary" id="summary"></div>
+</div>
+<div id="source" hidden>{{ map.svg | safe }}</div>
+<div class="print-pages" id="pages"></div>
+{% endblock %}
+{% block scripts %}
+<script>
+const PAPERS = {letter: {w: 8.5, h: 11}, a4: {w: 8.27, h: 11.69}, legal: {w: 8.5, h: 14}};
+const NS = 'http://www.w3.org/2000/svg';
+const MAP_TITLE = {{ map.title | tojson }};
+const source = document.querySelector('#source svg');
+const vbase = source.viewBox.baseVal && source.viewBox.baseVal.width
+  ? source.viewBox.baseVal
+  : {x: 0, y: 0, width: parseFloat(source.getAttribute('width')) || 800, height: parseFloat(source.getAttribute('height')) || 600};
+const $ = (id) => document.getElementById(id);
+
+function positive(value, fallback) {
+  const n = parseFloat(value);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function gridOverlay(x, y, w, h, step) {
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('stroke', '#000');
+  g.setAttribute('stroke-opacity', '0.35');
+  g.setAttribute('stroke-width', Math.max(step / 40, 0.3));
+  const line = (x1, y1, x2, y2) => {
+    const l = document.createElementNS(NS, 'line');
+    [['x1', x1], ['y1', y1], ['x2', x2], ['y2', y2]].forEach(([k, v]) => l.setAttribute(k, v));
+    g.appendChild(l);
+  };
+  for (let gx = Math.ceil((x - vbase.x) / step) * step + vbase.x; gx <= x + w; gx += step) line(gx, y, gx, y + h);
+  for (let gy = Math.ceil((y - vbase.y) / step) * step + vbase.y; gy <= y + h; gy += step) line(x, gy, x + w, gy);
+  return g;
+}
+
+function build() {
+  const paper = PAPERS[$('paper').value];
+  const landscape = $('orientation').value === 'landscape';
+  const pageW = landscape ? paper.h : paper.w;
+  const pageH = landscape ? paper.w : paper.h;
+  const margin = Math.min(Math.max(parseFloat($('margin').value) || 0, 0), 2);
+  const areaW = pageW - 2 * margin;
+  const areaH = pageH - 2 * margin;
+  const inches = positive($('inches').value, 1);
+  const pxPerSquare = positive($('pxsq').value, {{ grid_px }});
+  const scale = inches / pxPerSquare;                       // inches per map pixel
+  const tileW = areaW / scale, tileH = areaH / scale;       // map pixels per page
+  const cols = Math.max(1, Math.ceil(vbase.width / tileW - 1e-9));
+  const rows = Math.max(1, Math.ceil(vbase.height / tileH - 1e-9));
+
+  $('page-style').textContent = `@page { size: ${pageW}in ${pageH}in; margin: 0; }`;
+  $('summary').textContent =
+    `${cols} x ${rows} = ${cols * rows} page${cols * rows === 1 ? '' : 's'} ` +
+    `(map prints ${(vbase.width * scale).toFixed(1)} x ${(vbase.height * scale).toFixed(1)} in, ${inches} in per square)`;
+
+  const pages = $('pages');
+  pages.replaceChildren();
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = vbase.x + c * tileW, y = vbase.y + r * tileH;
+      const w = Math.min(tileW, vbase.x + vbase.width - x);
+      const h = Math.min(tileH, vbase.y + vbase.height - y);
+      const page = document.createElement('div');
+      page.className = 'print-page';
+      page.style.width = pageW + 'in';
+      page.style.height = pageH + 'in';
+
+      const tile = document.createElement('div');
+      tile.className = 'print-tile';
+      tile.style.left = tile.style.top = margin + 'in';
+      tile.style.width = (w * scale) + 'in';
+      tile.style.height = (h * scale) + 'in';
+      const svg = source.cloneNode(true);
+      svg.setAttribute('viewBox', `${x} ${y} ${w} ${h}`);
+      svg.setAttribute('width', (w * scale) + 'in');
+      svg.setAttribute('height', (h * scale) + 'in');
+      svg.setAttribute('preserveAspectRatio', 'xMinYMin slice');
+      if ($('overlay').checked) svg.appendChild(gridOverlay(x, y, w, h, pxPerSquare));
+      tile.appendChild(svg);
+      page.appendChild(tile);
+
+      const label = document.createElement('div');
+      label.className = 'tile-label';
+      label.style.left = margin + 'in';
+      label.style.top = Math.max(margin - 0.2, 0.02) + 'in';
+      label.textContent = `${MAP_TITLE} - row ${r + 1} of ${rows}, column ${c + 1} of ${cols}`;
+      page.appendChild(label);
+      pages.appendChild(page);
+    }
+  }
+}
+
+['paper', 'orientation', 'margin', 'inches', 'pxsq', 'overlay'].forEach((id) => $(id).addEventListener('input', build));
+$('print-btn').addEventListener('click', () => window.print());
+build();
+</script>
+{% endblock %}

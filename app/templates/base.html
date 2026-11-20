@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}GM Helper{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%231b1a17%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 font-family=%27serif%27 font-weight=%27bold%27 text-anchor=%27middle%27 fill=%27%23c4863f%27%3EGM%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/static/style.css">
   {% if theme_name == 'custom' and custom_theme_vars %}
     <style>
@@ -17,23 +18,37 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/">GM Helper</a>
-    <nav>
-      <a href="/">Games</a>
+    <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav">&#9776; Menu</button>
+    <nav id="site-nav">
       {% set gk = game_key or (game.key if game else None) %}
-      <a href="/maps{% if gk %}?game={{ gk }}{% endif %}">Maps</a>
-      <a href="/tools/dice{% if gk %}?game={{ gk }}{% endif %}">Dice</a>
-      <a href="/screen{% if gk %}?game={{ gk }}{% endif %}">GM Screen</a>
+      <a href="/">Games</a>
       {% if gk %}
         <a href="/library?game={{ gk }}">Library</a>
         <a href="/campaigns?game={{ gk }}">Campaigns</a>
-        <a href="/tools/npc?game={{ gk }}">NPCs</a>
-        <a href="/tools/initiative?game={{ gk }}">Initiative</a>
-        <a href="/tools/encounters?game={{ gk }}">Encounters</a>
-        <a href="/tools/oneshot?game={{ gk }}">One-Shot</a>
       {% endif %}
-      <a href="/bookmarks">Bookmarks</a>
-      <a href="/games/manage">Manage Games</a>
-      <a href="/settings">Settings</a>
+      <a href="/maps{% if gk %}?game={{ gk }}{% endif %}">Maps</a>
+      <a href="/screen{% if gk %}?game={{ gk }}{% endif %}">GM Screen</a>
+      <details class="nav-menu">
+        <summary>Tools</summary>
+        <div class="nav-menu-items">
+          <a href="/tools/dice{% if gk %}?game={{ gk }}{% endif %}">Dice</a>
+          <a href="/tools/tables{% if gk %}?game={{ gk }}{% endif %}">Random Tables</a>
+          {% if gk %}
+            <a href="/tools/initiative?game={{ gk }}">Initiative</a>
+            <a href="/tools/npc?game={{ gk }}">NPCs</a>
+            <a href="/tools/encounters?game={{ gk }}">Encounters</a>
+            <a href="/tools/oneshot?game={{ gk }}">One-Shot</a>
+          {% endif %}
+        </div>
+      </details>
+      <details class="nav-menu">
+        <summary>More</summary>
+        <div class="nav-menu-items">
+          <a href="/bookmarks">Bookmarks</a>
+          <a href="/games/manage">Manage Games</a>
+          <a href="/settings">Settings</a>
+        </div>
+      </details>
     </nav>
   </header>
   <main>

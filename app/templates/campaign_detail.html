@@ -9,7 +9,11 @@
       &middot; <a href="/campaigns?game={{ campaign.game_key }}">All campaigns</a>
     </p>
   </div>
-  <button id="delete-campaign-btn" class="secondary danger">Delete campaign</button>
+  <div class="row" style="gap:0.5rem;">
+    <a class="button-link" href="/campaigns/{{ campaign.id }}/export.md" title="Everything, including secrets - a backup or wiki copy">&#11015; Export (GM)</a>
+    <a class="button-link" href="/campaigns/{{ campaign.id }}/export.md?player_safe=1" title="Premise, cast names, places and played-session summaries only - no secrets">&#11015; Player handout</a>
+    <button id="delete-campaign-btn" class="secondary danger">Delete campaign</button>
+  </div>
 </div>
 
 <!-- ---------------------------------------------------------- Overview -->
@@ -156,6 +160,22 @@
           </select>
           <button class="secondary delete-npc-btn">Remove</button>
         </div>
+        <div class="row" style="margin-top:0.5rem;">
+          <div class="field-group" style="flex:1; min-width:180px;">
+            <label class="field-label">Faction</label>
+            <select data-field="faction_id">
+              <option value="">(none)</option>
+              {% for f in factions %}<option value="{{ f.id }}" {% if n.faction_id == f.id %}selected{% endif %}>{{ f.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field-group" style="flex:1; min-width:180px;">
+            <label class="field-label">Found at</label>
+            <select data-field="location_id">
+              <option value="">(nowhere in particular)</option>
+              {% for l in locations %}<option value="{{ l.id }}" {% if n.location_id == l.id %}selected{% endif %}>{{ l.name }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
         <div class="row" style="margin-top:0.5rem; align-items: flex-start;">
           <div class="field-group" style="flex:1; min-width:200px;">
             <label class="field-label">Wants</label>
@@ -184,6 +204,16 @@
         {% for d in ['ally', 'neutral', 'rival', 'villain', 'unknown'] %}<option value="{{ d }}">{{ d|capitalize }}</option>{% endfor %}
       </select>
       <button type="submit">Add NPC</button>
+    </div>
+    <div class="row">
+      <select name="faction_id">
+        <option value="">Faction (optional)</option>
+        {% for f in factions %}<option value="{{ f.id }}">{{ f.name }}</option>{% endfor %}
+      </select>
+      <select name="location_id">
+        <option value="">Found at (optional)</option>
+        {% for l in locations %}<option value="{{ l.id }}">{{ l.name }}</option>{% endfor %}
+      </select>
     </div>
     <div class="row" style="align-items: flex-start;">
       <textarea name="motivation" rows="2" placeholder="What do they want? (optional)" style="flex:1; min-width:200px;"></textarea>
@@ -247,6 +277,16 @@
           </select>
           <button class="secondary delete-location-btn">Remove</button>
         </div>
+        <div class="row" style="margin-top:0.5rem; align-items:flex-end;">
+          <div class="field-group" style="flex:1; min-width:200px; margin:0;">
+            <label class="field-label">Map</label>
+            <select data-field="map_id">
+              <option value="">(no map)</option>
+              {% for m in linkable_maps %}<option value="{{ m.id }}" {% if l.map_id == m.id %}selected{% endif %}>{{ m.title }}</option>{% endfor %}
+            </select>
+          </div>
+          {% if l.map_id and l.map_title %}<a class="button-link" href="/maps/{{ l.map_id }}">Open map &rarr;</a>{% endif %}
+        </div>
         <div class="field-group" style="margin-top:0.5rem;">
           <label class="field-label">Description</label>
           <textarea data-field="description" rows="2">{{ l.description or '' }}</textarea>
@@ -264,6 +304,10 @@
         <option value="">(top level)</option>
         {% for opt in locations %}<option value="{{ opt.id }}">{{ opt.name }}</option>{% endfor %}
       </select>
+      <select name="map_id">
+        <option value="">Map (optional)</option>
+        {% for m in linkable_maps %}<option value="{{ m.id }}">{{ m.title }}</option>{% endfor %}
+      </select>
       <button type="submit">Add location</button>
     </div>
     <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
@@ -277,6 +321,14 @@
     Prep the next session (a strong start, scenes that might happen, secrets/clues to seed,
     anything else you've prepped), then fill in what actually happened afterward.
   </p>
+  {% if ai_enabled %}
+    <div class="row" style="margin-bottom:0.75rem;">
+      <button type="button" id="recap-btn" class="secondary">&#10024; Recap the story so far</button>
+      <button type="button" id="prep-btn" class="secondary">&#10024; Suggest next-session prep</button>
+    </div>
+    <div id="ai-out" class="boxed-text md" style="display:none;"></div>
+    <div id="ai-actions" class="row" style="display:none; margin-bottom:0.75rem;"></div>
+  {% endif %}
   <div id="sessions-list" class="stack">
     {% for s in sessions %}
       <div class="subcard" data-id="{{ s.id }}">
@@ -418,6 +470,7 @@ document.getElementById('add-npc-form').addEventListener('submit', async (e) => 
     await postForm(`/api/campaigns/${campaignId}/npcs`, {
       name: form.name.value, role: form.role.value, disposition: form.disposition.value,
       motivation: form.motivation.value, secret: form.secret.value, notes: form.notes.value,
+      faction_id: form.faction_id.value, location_id: form.location_id.value,
     });
     location.reload();
   } catch (err) { alert('Could not add NPC: ' + err.message); }
@@ -448,6 +501,7 @@ document.getElementById('add-location-form').addEventListener('submit', async (e
   try {
     await postForm(`/api/campaigns/${campaignId}/locations`, {
       name: form.name.value, description: form.description.value, parent_id: form.parent_id.value,
+      map_id: form.map_id.value,
     });
     location.reload();
   } catch (err) { alert('Could not add location: ' + err.message); }
@@ -463,6 +517,87 @@ document.querySelectorAll('.toggle-session-btn').forEach(btn => {
     details.hidden = !details.hidden;
   });
 });
+
+// ---- AI: recap + prep suggestions ----
+const aiOut = document.getElementById('ai-out');
+const aiActions = document.getElementById('ai-actions');
+
+async function runAI(btn, url, onDone) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Thinking...';
+  aiOut.style.display = 'block';
+  aiActions.style.display = 'none';
+  aiActions.replaceChildren();
+  aiOut.textContent = '';
+  try {
+    onDone(await postForm(url, {}));
+  } catch (e) {
+    aiOut.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+function appendToField(sessionCard, field, text) {
+  const ta = sessionCard.querySelector(`[data-field="${field}"]`);
+  if (!ta || !text) return;
+  ta.value = ta.value.trim() ? ta.value.trim() + '\n' + text : text;
+  ta.dispatchEvent(new Event('input'));   // triggers the normal autosave
+}
+
+const recapBtn = document.getElementById('recap-btn');
+if (recapBtn) {
+  recapBtn.addEventListener('click', () => runAI(recapBtn, `/api/campaigns/${campaignId}/recap`, (res) => {
+    aiOut.replaceChildren(renderMarkdown(res.recap));
+    const toNotes = el('button', {type: 'button', class: 'secondary'}, 'Add to GM Screen notes');
+    toNotes.addEventListener('click', async () => {
+      try {
+        await postForm('/api/screen/notes/append', {game: {{ campaign.game_key | tojson }}, text: res.recap, heading: 'Recap'});
+        toNotes.textContent = 'Added \u2713';
+        toNotes.disabled = true;
+      } catch (e) { alert(e.message); }
+    });
+    aiActions.replaceChildren(toNotes);
+    aiActions.style.display = 'flex';
+  }));
+}
+
+const prepBtn = document.getElementById('prep-btn');
+if (prepBtn) {
+  prepBtn.addEventListener('click', () => runAI(prepBtn, `/api/campaigns/${campaignId}/prep-suggestions`, (res) => {
+    const parts = [
+      ['Strong start', res.strong_start], ['Scenes', res.scenes], ['Secrets & clues', res.secrets_clues],
+    ].filter(([, text]) => text);
+    if (!parts.length) {            // the model ignored the format - show it as written
+      aiOut.replaceChildren(renderMarkdown(res.raw));
+      return;
+    }
+    aiOut.replaceChildren(...parts.flatMap(([label, text]) => [
+      el('h4', {}, label), renderMarkdown(text),
+    ]));
+    const sessionCards = Array.from(document.querySelectorAll('#sessions-list > [data-id]'));
+    if (!sessionCards.length) {
+      aiActions.replaceChildren(el('span', {class: 'muted'}, 'Add a session below to drop these into.'));
+      aiActions.style.display = 'flex';
+      return;
+    }
+    const select = el('select', {}, sessionCards.map((card, i) =>
+      el('option', {value: String(i)}, `Session ${card.querySelector('strong').textContent.replace('Session ', '')}`)));
+    const apply = el('button', {type: 'button', class: 'secondary'}, 'Add to this session\u2019s prep');
+    apply.addEventListener('click', () => {
+      const card = sessionCards[Number(select.value)];
+      appendToField(card, 'strong_start', res.strong_start);
+      appendToField(card, 'scenes', res.scenes);
+      appendToField(card, 'secrets_clues', res.secrets_clues);
+      card.querySelector('.session-details').hidden = false;
+      apply.textContent = 'Added \u2713';
+    });
+    aiActions.replaceChildren(select, apply);
+    aiActions.style.display = 'flex';
+  }));
+}
 
 document.getElementById('add-session-btn').addEventListener('click', async () => {
   try {

@@ -1,5 +1,6 @@
 services:
   gm-helper:
+    # Use :latest-slim instead for the smaller image without OCR support.
     image: ghcr.io/kazwahs/gm-helper:latest
     container_name: gm-helper
     restart: unless-stopped
@@ -19,6 +20,13 @@ services:
       # explicit, writable HOME - EasyOCR caches its downloaded models there
       # (~/.EasyOCR) the first time OCR runs, otherwise it'd fail to write.
       - HOME=/config
+      # Optional: require a login (HTTP Basic) for the whole app. Strongly
+      # recommended if the port is reachable beyond your own machine. The
+      # username is GM_HELPER_USER (default "gm"). /healthz stays open.
+      # Basic auth sends the password with every request, so use it on a
+      # trusted LAN or behind HTTPS (e.g. a reverse proxy).
+      - GM_HELPER_PASSWORD=${GM_HELPER_PASSWORD:-}
+      - GM_HELPER_USER=${GM_HELPER_USER:-gm}
 
     volumes:
       # Persistent app data (database + games.json). Defaults to a folder
