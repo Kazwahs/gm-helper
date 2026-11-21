@@ -223,33 +223,47 @@ hidden motives, unrevealed threads) so you can hand it to your players.
 
 ## Maps
 
-The **Maps** tab procedurally generates six kinds of map as clean, scalable
-SVG - no image files, no external art, nothing downloaded - and renders
-instantly:
+The **Maps** tab procedurally generates six kinds of map as scalable SVG - no
+image files, no external art, nothing downloaded - and renders in well under a
+second. Pick a **Style**:
 
-- **Dungeon** and **Building Interior** - rooms connected by corridors (a
-  few extra loops beyond the minimum spanning tree, so it's not a pure
-  maze), each room numbered and most labeled with a genre-appropriate name
-  (a crypt or a server core, depending on setting) and occasionally a small
-  feature note.
-- **City / Urban** - the same recursive-subdivision idea, but the gaps
-  between blocks are the streets. Each block gets a district type from a
-  genre-flavored list and a color from the legend; a handful become
-  named **Landmarks**.
-- **Underground / Caves** - a cellular-automata cave (the classic "4-5
-  rule"), rendered as smooth organic blobs rather than a blocky grid, with
-  a few feature markers (an underground lake, an exposed power conduit,
-  whatever the setting calls for). Disconnected pockets get tunneled into
-  the main cavern so it's always fully reachable.
-- **Wilderness** and **World** - a hex-grid regional/world map: a height
-  field and an independent moisture field drive biome placement (ocean,
-  forest, desert, mountains, and so on), a few rivers flow downhill to the
-  coast (or end in a small lake if they don't reach one), and a handful of
-  settlements get named and placed on hospitable land. World maps add a
-  stronger pull toward ocean at the edges (so it reads as a whole
-  landmass) and a tundra band near the top/bottom; wilderness maps are a
-  smaller, mostly-land regional patch. Both come with a legend and a
-  compass rose.
+- **Ink (hand-drawn)** is the default. It borrows the look of Campaign
+  Cartographer / Dungeondraft style maps: pen-drawn walls with a soft inner
+  shadow, hatched rock around the edges, a faint floor grid, hand-wobbled
+  lines and a paper grain.
+- **Classic (flat colour)** is the original look, kept for anyone who prefers
+  it. Maps you saved before the Ink style existed keep their original look.
+
+The six kinds of map:
+
+- **Dungeon** and **Building Interior** - rooms of different shapes (square,
+  round, octagonal, cross-shaped) joined by straight corridors and doors, laid
+  out one of three ways: a **warren** that grows like a tree and then adds
+  loops, a **keep** on a grid of chambers, or a **hub** around a central
+  rotunda. Every map is checked to be fully connected. Doors come in several
+  kinds (plain, arch, swing, locked and **secret**), some rooms have stairs, and
+  each room is numbered and most are named, with furniture drawn on top. Secret
+  doors look like wall to everyone but carry a small **S** marker for you -
+  the marker is hidden on the player view and left off the printout unless you
+  tick **Mark secret doors (GM copy)**.
+- **City / Urban** - real streets and individual building footprints (some
+  L-shaped, some left as yards). Three plans: **organic** (wide avenues with
+  narrower lanes off them, gently bent), **grid**, and **radial** (ring roads
+  and spokes around a central plaza). Blocks carry a faint district tint, and
+  a few become parks, a market plaza or a named **landmark**. Fantasy cities
+  are sometimes walled, with gates and towers. The legend sits in its own
+  strip beside the map instead of covering part of it.
+- **Underground / Caves** - a cellular-automata cave smoothed into one flowing
+  outline, with hatched rock, stipple and a few feature markers (an underground
+  lake, an exposed power conduit, whatever the setting calls for). Disconnected
+  pockets get tunnelled into the main cavern so it's always reachable.
+- **Wilderness** and **World** - landmasses from smooth noise (a continent,
+  an archipelago, a peninsula or an inland sea) with soft coastlines, biomes
+  driven by height, moisture and temperature, mountain / hill / tree symbols,
+  rivers that run downhill to the sea (or end in a lake), roads joining the
+  settlements, and named towns and points of interest. Tick **Hex grid** to
+  draw a hex overlay for hex crawls. Both come with a legend strip, a scale
+  bar and a compass rose.
 
 **Setting** (High Fantasy / Modern / High Technology / Mixed) is independent
 of map type - a high-tech dungeon (a facility with a reactor chamber and
@@ -280,7 +294,10 @@ Each saved map has three extra ways to put it in front of players:
   is split into tiles you tape together, and an optional grid overlay helps
   when the generator's own grid is faint. For dungeon, interior, urban and
   underground maps the generator's square size is known, so the scale is
-  exact; for other map types it's an estimate.
+  exact; for other map types it's an estimate. Secret-door markers are left
+  off unless you tick **Mark secret doors (GM copy)**, and Ink maps print
+  without their wobble and shadow effects unless you tick **Pen & paper
+  effects** (see Limitations).
 - **Tokens** are markers for the party and the foes. On the GM's page add one
   (name, colour, size), click **Place on map...**, then click the map. Drag a
   token to move it; the player view follows within a couple of seconds. Tokens
@@ -301,13 +318,20 @@ Each saved map has three extra ways to put it in front of players:
 ### Editing a saved map
 
 Every saved map's page has an **Edit map** button. Turn it on and every
-generated room, block, hex, settlement, and cave feature marker becomes an
+generated room, block, settlement, object and cave feature marker becomes an
 element you can click to select:
 
 - **Drag** a selected element anywhere on the map.
-- **Relabel** it by typing in the side panel's label field.
-- **Recolor** it by picking one of the color swatches.
+- **Relabel** it by typing in the side panel's label field (a room name that
+  wraps onto two lines has a box for each line).
+- **Recolor** it by picking one of the color swatches. On an Ink room this is a
+  translucent **room tint** over the floor, with **Remove tint** to undo it.
 - **Delete this element** to remove it from the map entirely.
+
+Ink **rooms** and **city blocks** are part of the drawn artwork (the walls and
+streets around them can't move with them), so they can be selected, renamed and
+tinted but not dragged or deleted. Objects on top of them - furniture, market
+stalls, markers - can still be dragged and deleted.
 - **Add label** toggles a pin-placing mode - click anywhere on the map to
   drop a custom text label of your own, for anything the generator didn't
   think to name.
@@ -316,9 +340,11 @@ Nothing is written to the database until you click **Save edits** - reroll
 around as much as you like first. **Revert to generated** throws away every
 hand edit and restores the map exactly as it first came out of the
 generator (this can't be undone, so it asks for confirmation first).
-Corridors, streets, rivers, the legend, compass rose, and title are part of
-the map's background rendering rather than individual elements, so they
-aren't selectable - only the discrete, individually-meaningful pieces are.
+Walls, corridors, streets, coastlines, rivers, roads, the legend, compass
+rose, and title are part of the map's background rendering rather than
+individual elements, so they aren't selectable - only the discrete,
+individually-meaningful pieces are. Ink-style wilderness and world maps have
+no per-hex elements (there is no hex cell to select); Classic ones do.
 
 One caveat: this works by tagging each generated element at render time, so
 a map saved before this feature existed won't have those tags. Its shapes
@@ -492,11 +518,16 @@ app/
   llm.py                 optional AI client (OpenAI-compatible / Anthropic) + the
                           verified-connection gate every AI feature checks
   maps/
-    generator.py          dispatches to the right generator by map type
-    rooms.py               dungeon / building interior (subdivision + corridor MST)
-    urban.py                city blocks (subdivision, gaps become streets)
-    caves.py                 cellular-automata caves, rendered via an SVG goo filter
-    terrain.py                hex-grid wilderness/world (heightmap, biomes, rivers)
+    generator.py          dispatches by map type and style (ink / classic)
+    ink.py                 shared hand-inked toolkit: pen filters, hatching, noise, contours
+    ink_rooms.py            Ink dungeon / interior (room shapes, layouts, doors, secret doors)
+    ink_caves.py             Ink caves (smoothed outline, hatching, stipple)
+    ink_terrain.py            Ink wilderness / world (heightmap, biomes, rivers, roads, symbols)
+    ink_urban.py               Ink city (streets, lots, parks, walls)
+    rooms.py               Classic dungeon / building interior (subdivision + corridor MST)
+    urban.py                Classic city blocks (subdivision, gaps become streets)
+    caves.py                 Classic caves, rendered via an SVG goo filter (also the cave floor plan)
+    terrain.py                Classic hex-grid wilderness/world (heightmap, biomes, rivers)
     content.py                 genre word banks (data/map_content.json) + name generator
     shapes.py                   shared subdivision + minimum-spanning-tree helpers
     svg.py                       small SVG-string builder helpers
@@ -589,7 +620,15 @@ build.
   encounters are unlimited).
 - Fog of war on the player view is visual only (the full map is in the page
   source) - fine at the table, not a way to keep a map truly secret. Hidden
-  tokens are different: they are never sent to the player view at all.
+  tokens are different: they are never sent to the player view at all. The
+  same goes for secret-door markers: hidden on the player view with styling,
+  but present in the page source.
+- The Ink look uses SVG filters (hand wobble, soft shadows, paper grain). They
+  are cheap on screen but very slow for a printer to work out - in testing a
+  16-sheet dungeon took over a minute to turn into a PDF with them on, and
+  under a second with them off. So the **Print** page leaves them out by default
+  (crisp pen lines, flat floors) and has a **Pen & paper effects** checkbox to
+  put them back for a page or two.
 - Handout images are served by the app and are only protected by the optional
   app password - anyone on your network who has the link (and the password,
   if set) can open them. Tokens and handouts reach the player view by

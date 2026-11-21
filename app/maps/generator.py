@@ -2,7 +2,7 @@
 right generator module and returns a reproducible, ready-to-embed SVG."""
 import random
 
-from . import caves, rooms, terrain, urban
+from . import caves, ink_caves, ink_rooms, ink_terrain, ink_urban, rooms, terrain, urban
 
 MAP_TYPES = [
     {"key": "dungeon", "name": "Dungeon"},
@@ -24,6 +24,16 @@ _GENRE_KEYS = {g["key"] for g in GENRES}
 
 SIZES = ["small", "medium", "large"]
 
+# "ink" is the hand-inked look (hatched rock, pen walls, real coastlines,
+# street maps); "classic" is the original flat-colour look, kept for anyone
+# who prefers it or has a printed handout in that style.
+STYLES = [
+    {"key": "ink", "name": "Ink (hand-drawn)"},
+    {"key": "classic", "name": "Classic (flat colour)"},
+]
+_STYLE_KEYS = {s["key"] for s in STYLES}
+DEFAULT_STYLE = "ink"
+
 # Map pixels per grid square, as each generator draws it - what the
 # print-to-scale view uses to turn a map into 1-inch squares. Wilderness and
 # world maps have no grid, so they get a convenient round default instead.
@@ -35,6 +45,10 @@ def grid_px(map_type):
     return GRID_PX.get(map_type, DEFAULT_GRID_PX)
 
 
+def _truthy(value):
+    return str(value).strip().lower() in ("1", "true", "on", "yes")
+
+
 def generate_map(map_type, genre, params=None, seed=None):
     if map_type not in _MAP_TYPE_KEYS:
         raise ValueError(f"Unknown map type: {map_type!r}")
@@ -43,20 +57,23 @@ def generate_map(map_type, genre, params=None, seed=None):
     params = dict(params or {})
     if params.get("size") not in SIZES:
         params["size"] = "medium"
+    if params.get("style") not in _STYLE_KEYS:
+        params["style"] = DEFAULT_STYLE
+    ink = params["style"] == "ink"
     if seed is None:
         seed = random.randrange(1_000_000_000)
     rng = random.Random(seed)
 
-    if map_type == "dungeon":
-        result = rooms.generate(rng, genre, "dungeon", params)
-    elif map_type == "interior":
-        result = rooms.generate(rng, genre, "interior", params)
+    if map_type in ("dungeon", "interior"):
+        module = ink_rooms if ink else rooms
+        result = module.generate(rng, genre, map_type, params)
     elif map_type == "urban":
-        result = urban.generate(rng, genre, params)
+        result = (ink_urban if ink else urban).generate(rng, genre, params)
     elif map_type == "underground":
-        result = caves.generate(rng, genre, params)
+        result = (ink_caves if ink else caves).generate(rng, genre, params)
     elif map_type in ("wilderness", "world"):
-        result = terrain.generate(rng, genre, map_type, params)
+        params["hex_grid"] = _truthy(params.get("hex_grid"))
+        result = (ink_terrain if ink else terrain).generate(rng, genre, map_type, params)
     else:  # pragma: no cover - guarded above
         raise ValueError(f"Unknown map type: {map_type!r}")
 

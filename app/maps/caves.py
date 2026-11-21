@@ -201,7 +201,10 @@ def _carve_line(grid, x1, y1, x2, y2, w, h):
             y += sy
 
 
-def generate(rng, genre, params):
+def build(rng, genre, params):
+    """Everything about a cave map except how it is drawn: the floor grid,
+    which layout archetype made it, and where features/objects sit. Shared
+    by the classic renderer below and the ink renderer (ink_caves.py)."""
     preset = _SIZE_PRESETS.get(params.get("size", "medium"), _SIZE_PRESETS["medium"])
     w, h = preset["w"], preset["h"]
     style_genre = genre if genre != "mixed" else rng.choice(content.GENRES)
@@ -277,6 +280,17 @@ def generate(rng, genre, params):
         rng, object_candidates, genre, objects.CAVE_OBJECTS, n_objects, object_min_dist
     )
 
+    return {
+        "w": w, "h": h, "grid": grid, "layout": layout, "style_genre": style_genre, "style": style,
+        "floor_cells": floor_cells, "features": features, "objects": placed_objects,
+        "openness": openness,
+    }
+
+
+def generate(rng, genre, params):
+    b = build(rng, genre, params)
+    w, h, layout, style = b["w"], b["h"], b["layout"], b["style"]
+    floor_cells, features, placed_objects = b["floor_cells"], b["features"], b["objects"]
     width_px, height_px = w * CELL, h * CELL
     filter_id = "caveGoo"
     body = [svg.rect(0, 0, width_px, height_px, style["bg"])]

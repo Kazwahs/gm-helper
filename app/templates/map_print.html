@@ -14,6 +14,11 @@
   .print-tile { position: absolute; outline: 1px dashed #888; line-height: 0; }
   .print-tile svg { display: block; }
   .tile-label { position: absolute; font: 10px sans-serif; color: #444; }
+  /* Kept on-screen (but out of sight) rather than display:none, so the filters, patterns and
+     clip paths the tiles refer to by id still resolve in every browser. */
+  .source-stash { position: absolute; left: -10000px; top: 0; width: 1px; height: 1px; overflow: hidden; }
+  /* secret-door markers are for the GM: off in the printout unless asked for */
+  body:not(.show-gm) .print-tile .gm-only { display: none; }
   @media screen { .print-pages { zoom: 0.55; } }
   @media print {
     body.bare { background: #fff; }
@@ -43,11 +48,14 @@
     <label>Square size (in) <input type="number" id="inches" value="1" min="0.25" max="4" step="0.05"></label>
     <label>Map pixels per square <input type="number" id="pxsq" value="{{ grid_px }}" min="1" max="500" step="1"></label>
     <label><input type="checkbox" id="overlay"> Draw a grid on top</label>
+    <label id="gm-wrap" hidden><input type="checkbox" id="show-gm"> Mark secret doors (GM copy)</label>
+    <label id="fx-wrap" hidden title="The hand-drawn wobble, shadows and paper grain are slow for the printer to work out - minutes for a big map. Leave this off unless you only need a page or two.">
+      <input type="checkbox" id="fx"> Pen &amp; paper effects (slow to print)</label>
     <button type="button" id="print-btn">Print</button>
   </div>
   <div class="print-summary" id="summary"></div>
 </div>
-<div id="source" hidden>{{ map.svg | safe }}</div>
+<div id="source" class="source-stash" aria-hidden="true">{{ map.svg | safe }}</div>
 <div class="print-pages" id="pages"></div>
 {% endblock %}
 {% block scripts %}
@@ -60,6 +68,14 @@ const vbase = source.viewBox.baseVal && source.viewBox.baseVal.width
   ? source.viewBox.baseVal
   : {x: 0, y: 0, width: parseFloat(source.getAttribute('width')) || 800, height: parseFloat(source.getAttribute('height')) || 600};
 const $ = (id) => document.getElementById(id);
+// Ink maps get their hand-drawn look from SVG filters. They're cosmetic, but a printer has to
+// work each one out at full print resolution on every sheet (minutes, not seconds), so the
+// printout drops them unless asked to keep them. The map itself is unchanged.
+const isInk = source.dataset.style === 'ink';
+function dropEffects(svg) {
+  svg.querySelectorAll('.paper-grain').forEach((n) => n.remove());
+  svg.querySelectorAll('[filter]').forEach((n) => n.removeAttribute('filter'));
+}
 
 function positive(value, fallback) {
   const n = parseFloat(value);
@@ -123,6 +139,7 @@ function build() {
       svg.setAttribute('width', (w * scale) + 'in');
       svg.setAttribute('height', (h * scale) + 'in');
       svg.setAttribute('preserveAspectRatio', 'xMinYMin slice');
+      if (isInk && !$('fx').checked) dropEffects(svg);
       if ($('overlay').checked) svg.appendChild(gridOverlay(x, y, w, h, pxPerSquare));
       tile.appendChild(svg);
       page.appendChild(tile);
@@ -138,7 +155,11 @@ function build() {
   }
 }
 
-['paper', 'orientation', 'margin', 'inches', 'pxsq', 'overlay'].forEach((id) => $(id).addEventListener('input', build));
+['paper', 'orientation', 'margin', 'inches', 'pxsq', 'overlay', 'fx'].forEach((id) => $(id).addEventListener('input', build));
+if (isInk) $('fx-wrap').hidden = false;
+// ink maps can hide secret doors; offer to mark them on a GM copy
+if (source.querySelector('.gm-only')) $('gm-wrap').hidden = false;
+$('show-gm').addEventListener('change', () => document.body.classList.toggle('show-gm', $('show-gm').checked));
 $('print-btn').addEventListener('click', () => window.print());
 build();
 </script>

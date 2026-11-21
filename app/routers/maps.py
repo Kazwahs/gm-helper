@@ -11,7 +11,7 @@ from .. import map_tokens, maps_store
 from ..library import games as games_module
 from ..maps import MAP_TYPES, generate_map
 from ..maps import generator as map_generator
-from ..maps.generator import GENRES as MAP_GENRES, SIZES as MAP_SIZES
+from ..maps.generator import GENRES as MAP_GENRES, SIZES as MAP_SIZES, STYLES as MAP_STYLES
 from ..web import base_ctx, templates
 
 router = APIRouter()
@@ -28,6 +28,7 @@ def maps_page(request: Request, game: str = None, campaign_id: int = None):
         "map_types": MAP_TYPES,
         "genres": MAP_GENRES,
         "sizes": MAP_SIZES,
+        "styles": MAP_STYLES,
         "all_games": games_module.all_game_choices(),
         "campaigns": campaigns_module.list_campaigns(game_key=game) if game else [],
         "preset_campaign_id": campaign_id,
@@ -36,9 +37,10 @@ def maps_page(request: Request, game: str = None, campaign_id: int = None):
 
 
 @router.post("/api/maps/generate")
-def api_generate_map(map_type: str = Form(...), genre: str = Form(...), size: str = Form("medium")):
+def api_generate_map(map_type: str = Form(...), genre: str = Form(...), size: str = Form("medium"),
+                     style: str = Form("ink"), hex_grid: str = Form("")):
     try:
-        result = generate_map(map_type, genre, params={"size": size})
+        result = generate_map(map_type, genre, params={"size": size, "style": style, "hex_grid": hex_grid})
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
     return JSONResponse(result)

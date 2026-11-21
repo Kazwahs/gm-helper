@@ -311,19 +311,24 @@ function renderPanel() {
     el('div', {}, kindLabel),
   ]));
 
-  const labelEl = selectedEl.querySelector('.map-el-label');
-  if (labelEl) {
+  // a room's name can wrap onto several lines, each its own <text>; objects
+  // nested inside have their own selection, so only this element's own labels count
+  const labelEls = [...selectedEl.querySelectorAll('.map-el-label')].filter((n) => n.closest('.map-el') === selectedEl);
+  labelEls.forEach((labelEl, i) => {
     const labelInput = el('input', {type: 'text', value: labelEl.textContent});
     labelInput.addEventListener('input', () => { labelEl.textContent = labelInput.value; });
     panel.appendChild(el('div', {class: 'field-group'}, [
-      el('label', {class: 'field-label'}, 'Label text'),
+      el('label', {class: 'field-label'}, labelEls.length > 1 ? `Label text (line ${i + 1})` : 'Label text'),
       labelInput,
     ]));
-  }
+  });
 
+  // an ink room's tint sits invisibly over its floor until you pick a colour
   const fillEl = selectedEl.querySelector('.map-el-fill');
   if (fillEl) {
-    const currentFill = (fillEl.getAttribute('fill') || '').toLowerCase();
+    const tintable = fillEl.hasAttribute('data-tint');
+    const tinted = !tintable || parseFloat(fillEl.getAttribute('fill-opacity') || '1') > 0;
+    const currentFill = tinted ? (fillEl.getAttribute('fill') || '').toLowerCase() : '';
     const swatches = MAP_COLOR_SWATCHES.includes(currentFill) || !currentFill
       ? MAP_COLOR_SWATCHES
       : [currentFill, ...MAP_COLOR_SWATCHES];
@@ -334,15 +339,34 @@ function renderPanel() {
       if (color === currentFill) b.classList.add('selected-swatch');
       b.addEventListener('click', () => {
         fillEl.setAttribute('fill', color);
+        if (tintable) fillEl.setAttribute('fill-opacity', '0.5');
         selectedEl.setAttribute('data-fill', color);
         renderPanel();
       });
       swatchRow.appendChild(b);
     });
-    panel.appendChild(el('div', {class: 'field-group'}, [
-      el('label', {class: 'field-label'}, 'Color'),
+    const colorField = el('div', {class: 'field-group'}, [
+      el('label', {class: 'field-label'}, tintable ? 'Room tint' : 'Color'),
       swatchRow,
-    ]));
+    ]);
+    if (tintable && tinted) {
+      const clear = el('button', {type: 'button', class: 'secondary', style: 'margin-top:0.4rem;'}, 'Remove tint');
+      clear.addEventListener('click', () => {
+        fillEl.setAttribute('fill', fillEl.getAttribute('data-tint'));
+        fillEl.setAttribute('fill-opacity', '0');
+        selectedEl.setAttribute('data-fill', fillEl.getAttribute('data-tint'));
+        renderPanel();
+      });
+      colorField.appendChild(clear);
+    }
+    panel.appendChild(colorField);
+  }
+
+  if (selectedEl.dataset.locked) {
+    // rooms and city blocks are part of the drawn map - they can't be moved or deleted
+    panel.appendChild(el('p', {class: 'muted', style: 'margin:0.5rem 0 0;'},
+      'Part of the drawn map: you can rename and tint it, but not move or delete it. Objects on top of it can be dragged.'));
+    return;
   }
 
   const delBtn = el('button', {type: 'button', class: 'secondary danger'}, 'Delete this element');
@@ -361,6 +385,7 @@ mapFrame.addEventListener('mousedown', (e) => {
   if (!g) return;
   e.preventDefault();
   selectElement(g);
+  if (g.dataset.locked) return;          // select (rename/tint) but never drag
   const svgRoot = g.ownerSVGElement;
   const start = toSvgPoint(svgRoot, e);
   const [tx0, ty0] = getTranslate(g);

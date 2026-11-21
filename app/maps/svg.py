@@ -7,20 +7,29 @@ def esc(s):
     return _escape(str(s), {'"': "&quot;"})
 
 
-def svg_doc(width, height, body, extra_defs="", view_box=None):
+def svg_doc(width, height, body, extra_defs="", view_box=None, halo="#ffffffcc", extra_css="", ink=False):
+    """``halo`` is the outline colour drawn behind editable labels so they
+    stay readable over whatever the map is drawn on - light maps want a pale
+    halo, dark maps a dark one (a pale halo behind pale text is unreadable).
+    ``ink`` marks a hand-inked map: every SVG filter on it is cosmetic (pen
+    wobble, shadows, paper grain), so the print page may drop them."""
     vb = view_box or f"0 0 {width} {height}"
     style = (
-        "<style>.map-el-label{paint-order:stroke;stroke:#ffffffcc;"
-        "stroke-width:3px;stroke-linejoin:round;}</style>"
+        f"<style>.map-el-label{{paint-order:stroke;stroke:{halo};"
+        f"stroke-width:3px;stroke-linejoin:round;}}{extra_css}</style>"
     )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="{vb}" font-family="Georgia, serif">'
+        f'viewBox="{vb}" font-family="Georgia, serif"{' data-style="ink"' if ink else ""}>'
         f"<defs>{extra_defs}</defs>"
         f"{style}"
         f"{body}"
         f"</svg>"
     )
+
+
+def ink_doc(*args, **kwargs):
+    return svg_doc(*args, ink=True, **kwargs)
 
 
 def rect(x, y, w, h, fill, stroke=None, stroke_width=1, rx=0, opacity=None, extra=""):
@@ -87,10 +96,15 @@ def group(body, extra=""):
 # shown in the editor's side panel; cx/cy is the element's logical center in
 # SVG user-space units (used as the drag origin); fill, when given, is the
 # element's current color so the editor can offer a color swatch.
-def map_el(kind, cx, cy, body, fill=None):
+def map_el(kind, cx, cy, body, fill=None, locked=False):
+    """An editable element. `locked` ones are part of the drawn map (an ink room
+    or city block): the editor lets you rename and tint them but not drag or
+    delete them, since they sit on top of artwork that can't move with them."""
     attrs = f'class="map-el" data-kind="{esc(kind)}" data-cx="{cx:.1f}" data-cy="{cy:.1f}"'
     if fill:
         attrs += f' data-fill="{esc(fill)}"'
+    if locked:
+        attrs += ' data-locked="1"'
     return f"<g {attrs}>{body}</g>"
 
 

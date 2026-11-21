@@ -3,9 +3,10 @@
 {% block content %}
 <h1>Maps{% if game %} - {{ game.name }}{% endif %}</h1>
 <p class="muted">
-  Generate a map, then save the ones worth keeping. Dungeons, building interiors, city
-  districts, and cave/tunnel systems render as clean stylized floor plans; wilderness and
-  world maps render as hex-grid regional terrain with rivers, settlements, and a legend.
+  Generate a map, then save the ones worth keeping. The default <strong>Ink</strong> style draws
+  dungeons, interiors and caves with pen walls, hatching and doors (including secret ones), cities
+  with real streets and building footprints, and wilderness/world maps with coastlines, biomes,
+  rivers and roads. <strong>Classic</strong> keeps the original flat-colour look.
 </p>
 
 <div class="card">
@@ -20,6 +21,12 @@
     <select name="size" id="size-select">
       {% for s in sizes %}<option value="{{ s }}" {% if s == 'medium' %}selected{% endif %}>{{ s|capitalize }}</option>{% endfor %}
     </select>
+    <select name="style" id="style-select" title="Drawing style">
+      {% for st in styles %}<option value="{{ st.key }}">{{ st.name }}</option>{% endfor %}
+    </select>
+    <label id="hex-wrap" class="inline-check" hidden title="Draw a hex grid over the map (for hex crawls)">
+      <input type="checkbox" name="hex_grid" id="hex-grid" value="1"> Hex grid
+    </label>
     <button type="submit">Generate</button>
     <button type="button" id="reroll-btn" class="secondary" disabled>Reroll</button>
   </form>
@@ -80,7 +87,9 @@ async function doGenerate() {
     map_type: form.map_type.value,
     genre: form.genre.value,
     size: form.size.value,
+    style: form.style.value,
   };
+  if (form.hex_grid.checked && !document.getElementById('hex-wrap').hidden) data.hex_grid = '1';
   try {
     lastResult = await postForm('/api/maps/generate', data);
     document.getElementById('preview-frame').innerHTML = lastResult.svg;
@@ -92,6 +101,16 @@ async function doGenerate() {
     alert('Could not generate a map: ' + e.message);
   }
 }
+
+function syncHexOption() {
+  // the hex overlay only applies to ink-style overland and world maps
+  const t = document.getElementById('map-type-select').value;
+  const ink = document.getElementById('style-select').value === 'ink';
+  document.getElementById('hex-wrap').hidden = !(ink && (t === 'wilderness' || t === 'world'));
+}
+document.getElementById('map-type-select').addEventListener('change', syncHexOption);
+document.getElementById('style-select').addEventListener('change', syncHexOption);
+syncHexOption();
 
 document.getElementById('generate-form').addEventListener('submit', (e) => {
   e.preventDefault();

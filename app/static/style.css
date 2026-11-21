@@ -808,6 +808,8 @@ header.topbar nav a:focus-visible,
 body.bare { margin: 0; }
 .player-stage { height: calc(100vh - 3rem); display: flex; align-items: center; justify-content: center; background: #000; }
 .player-stage svg { max-width: 100%; max-height: 100%; width: auto; height: auto; }
+/* secret-door markers and other GM-only notes drawn into ink maps */
+.player-stage .gm-only { display: none; }
 .player-bar { height: 3rem; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; background: var(--bg-panel); border-top: 1px solid var(--border); }
 .player-bar.hidden { display: none; }
 .player-title { font-weight: bold; margin-right: auto; }
