@@ -195,6 +195,25 @@
     <strong>Full copy</strong> is exactly what's on disk, search index included - it can be hundreds of MB,
     and it <em>includes your saved AI API key</em>, so keep it private.
   </p>
+  <h4 style="margin:1rem 0 0.4rem;">Automatic backups</h4>
+  <p class="muted" style="margin:0 0 0.5rem;">
+    A small "my data" copy is saved on a schedule into a <code>backups</code> folder next to the database,
+    and the oldest are deleted so it never grows. That guards against mistakes and bad updates, not a failed
+    disk - now and then copy that folder somewhere else.
+  </p>
+  <form class="row" id="autobackup-form" style="align-items:center; gap:0.6rem; flex-wrap:wrap;">
+    <label><input type="checkbox" id="autobackup-enabled"> Back up automatically</label>
+    <label>every
+      <select id="autobackup-hours">
+        <option value="6">6 hours</option><option value="12">12 hours</option><option value="24">day</option>
+        <option value="72">3 days</option><option value="168">week</option>
+      </select></label>
+    <label>keep the last <input type="number" id="autobackup-keep" min="1" max="200" style="width:4.5rem;"> copies</label>
+    <button type="submit" class="secondary">Save</button>
+    <button type="button" id="autobackup-run">Back up now</button>
+  </form>
+  <p id="autobackup-msg" class="muted" style="margin:0.5rem 0 0;"></p>
+  <div id="autobackup-list" style="margin-top:0.5rem;"></div>
   <details>
     <summary>How to restore (Windows)</summary>
     <ol>
@@ -211,6 +230,66 @@
 {% endblock %}
 {% block scripts %}
 <script>
+// ---- Automatic backups ----
+(function () {
+  const $ = (id) => document.getElementById(id);
+  function fmt(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+  function render(st) {
+    $('autobackup-enabled').checked = st.settings.enabled;
+    $('autobackup-hours').value = String(st.settings.hours);
+    if (![...$('autobackup-hours').options].some((o) => o.value === String(st.settings.hours))) {
+      const o = document.createElement('option');
+      o.value = String(st.settings.hours); o.textContent = st.settings.hours + ' hours';
+      $('autobackup-hours').appendChild(o); $('autobackup-hours').value = o.value;
+    }
+    $('autobackup-keep').value = st.settings.keep;
+    const list = $('autobackup-list');
+    list.textContent = '';
+    if (!st.backups.length) {
+      list.textContent = st.settings.enabled
+        ? 'No automatic backups yet - the first one is made a minute or so after the app starts, or press Back up now.'
+        : 'Automatic backups are off.';
+    } else {
+      const ul = document.createElement('ul');
+      st.backups.forEach((b) => {
+        const li = document.createElement('li');
+        const a = document.createElement('a');
+        a.href = '/backup/auto/' + encodeURIComponent(b.name); a.textContent = b.modified; a.download = b.name;
+        li.appendChild(a);
+        li.appendChild(document.createTextNode(' - ' + fmt(b.size)));
+        ul.appendChild(li);
+      });
+      list.appendChild(ul);
+    }
+    const msg = st.last_error ? 'The last automatic backup failed: ' + st.last_error : 'Saved in: ' + st.folder;
+    $('autobackup-msg').textContent = msg;
+  }
+  async function call(url, data) {
+    const res = await fetch(url, data ? {method: 'POST', body: new URLSearchParams(data)} : {});
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || res.statusText);
+    return body;
+  }
+  $('autobackup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    try {
+      render(await call('/api/backups/settings', {
+        enabled: $('autobackup-enabled').checked ? '1' : '0',
+        hours: $('autobackup-hours').value, keep: $('autobackup-keep').value}));
+    } catch (err) { $('autobackup-msg').textContent = err.message; }
+  });
+  $('autobackup-run').addEventListener('click', async () => {
+    $('autobackup-msg').textContent = 'Backing up...';
+    try { render(await call('/api/backups/run', {})); }
+    catch (err) { $('autobackup-msg').textContent = err.message; }
+  });
+  call('/api/backups').then(render).catch(() => {});
+})();
+
 // ---- Appearance ----
 // Mirrors the :root/[data-theme] color values in style.css just closely
 // enough to paint small swatch previews without switching the whole page's

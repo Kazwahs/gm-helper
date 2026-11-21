@@ -1,4 +1,6 @@
 """Dice, NPC generator, initiative tracker, encounters/loot, one-shot generator."""
+import json
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import JSONResponse
 
@@ -7,7 +9,7 @@ from .. import llm as llm_module
 from ..tools import dice as dice_tool
 from ..tools import npc_generator
 from ..tools import initiative as initiative_tool
-from .. import saved_encounters
+from .. import encounter_guide, saved_encounters
 from ..tools import encounters as encounters_tool
 from ..web import base_ctx, game_ctx, templates
 
@@ -205,6 +207,7 @@ def encounters_page(request: Request, game: str = None):
     ctx = base_ctx(request)
     ctx["game"] = game_ctx(game)
     ctx["environments"] = encounters_tool.environments()
+    ctx["guide_game"] = game or "_global"
     return templates.TemplateResponse(request, "tools_encounters.html", ctx)
 
 
@@ -222,6 +225,62 @@ def api_loot_generate(tier: str = Form("mid"), include_item: bool = Form(True)):
         return JSONResponse(encounters_tool.generate_loot(tier, include_item))
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+# ------------------------------------------------- encounter builder guide
+def _guide_error(e):
+    return JSONResponse({"error": str(e)}, status_code=400)
+
+
+def _party_from_form(game, raw):
+    """The party typed on the page (a JSON list), else the one saved for this game."""
+    if raw is None or not raw.strip():
+        return encounter_guide.get_party(game)
+    try:
+        return json.loads(raw)
+    except ValueError:
+        raise encounter_guide.GuideError("The party list couldn't be read.")
+
+
+@router.get("/api/guide")
+def api_guide(game: str = "_global"):
+    """Everything the builder needs on load: its choices, this game's profile and saved party."""
+    try:
+        return JSONResponse({
+            "options": encounter_guide.options(),
+            "profile": encounter_guide.profile_for(game),
+            "party": encounter_guide.get_party(game),
+            "encounters": [{"id": e["id"], "name": e["name"], "body": e["body"]} for e in saved_encounters.list_encounters(game)],
+        })
+    except encounter_guide.GuideError as e:
+        return _guide_error(e)
+
+
+@router.post("/api/guide/party")
+def api_guide_party_save(game: str = Form("_global"), party: str = Form("[]")):
+    try:
+        return JSONResponse({"party": encounter_guide.set_party(game, _party_from_form(game, party or "[]"))})
+    except encounter_guide.GuideError as e:
+        return _guide_error(e)
+
+
+@router.get("/api/guide/party/board")
+def api_guide_party_board(game: str = "_global"):
+    """The PCs on the initiative board with hit points, as party members (not saved)."""
+    try:
+        return JSONResponse({"party": encounter_guide.party_from_board(game)})
+    except encounter_guide.GuideError as e:
+        return _guide_error(e)
+
+
+@router.post("/api/guide/assess")
+def api_guide_assess(game: str = Form("_global"), body: str = Form(""), party: str = Form(""),
+                     foe_hits: str = Form("")):
+    try:
+        result = encounter_guide.assess_text(game, body, _party_from_form(game, party), foe_hits or None)
+    except encounter_guide.GuideError as e:
+        return _guide_error(e)
+    return JSONResponse(result)
 
 
 # ------------------------------------------------------- saved encounters

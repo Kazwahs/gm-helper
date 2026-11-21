@@ -111,6 +111,17 @@ safe to take while the app is running:
   because of the search index, and it **includes your saved AI API key**, so
   keep it private.
 
+**Automatic backups** are on by default. About a minute after the app starts, and
+then every ten minutes, it checks whether the newest one is older than your
+chosen interval (a day unless you change it) and, if so, saves a small "my data"
+copy into a `backups` folder next to the database (set `GM_HELPER_BACKUP_DIR` to
+put it elsewhere). It keeps the newest 14 and deletes older ones. Change the
+interval, the number kept, or switch it off under **Settings -> Backup**, where
+you can also **Back up now** and download any of them. This protects you from
+mistakes, a bad update and a damaged database. **It does not protect you from
+the disk failing**, because the copies live on the same disk, so now and then
+copy the `backups` folder somewhere else.
+
 To restore on Windows: stop GM Helper, rename the current `gm_helper.db` (for
 example to `gm_helper.db.old`), delete `gm_helper.db-wal` and `gm_helper.db-shm`
 if they exist, copy your backup in and name it `gm_helper.db`, then start the
@@ -157,7 +168,10 @@ Two image variants are published to `ghcr.io/kazwahs/gm-helper`:
 | slim | `latest-slim`, `1.2.3-slim`, `sha-<commit>-slim` | No OCR libraries - far smaller |
 
 To build the slim image yourself: `docker build --build-arg INSTALL_OCR=false -t gm-helper:slim .`
-The container has a health check that calls `/healthz` (it checks the database
+The image build, and the GitHub Actions run before it, start with a **startup
+check**: every file must compile on the image's Python version (3.11) and the app
+must import. A typo that only breaks on 3.11 now stops the build with a clear
+error instead of producing an image that crashes when it starts. The container has a health check that calls `/healthz` (it checks the database
 too), so `docker ps` shows `healthy` / `unhealthy`. Set `GM_HELPER_PASSWORD` in
 your `.env` to turn the password on (see above).
 
@@ -185,7 +199,22 @@ campaign, laid out the way most GM prep and campaign-wiki tools converge on:
   one up on the NPC Generator page and there's a one-click "Add to
   campaign's cast" to send it straight into a campaign's Cast list.
 - **Factions** - the powers pursuing their own goals while the party's
-  doing something else.
+  doing something else, each with a **standing** toward the party (hostile,
+  unfriendly, neutral, friendly or allied).
+- **Ties** - who is allied with, owes, fears or is related to whom, between
+  your factions and your cast ("Marlowe fears The Guild"). Removing an NPC or a
+  faction removes its ties.
+- **Clocks** - a threat on a timer ("the ritual completes", 3 of 6). Click a
+  segment, or use + and minus, as the world moves; a full clock tells you it is
+  time for the thing to happen. A clock can belong to a faction and carries a
+  note on what happens when it fills.
+- **Secrets & clues** - what the party could discover, each with where they can
+  learn it and the session it was prepped for. **Import from session prep**
+  turns the Secrets & clues box of each session into entries, one per line,
+  skipping any already listed. When the party learns one, press **Reveal**: it
+  is marked revealed and a *clue* line goes into the session log (of the session
+  you have selected in the log below, so the recap sees it). **Hide again** takes
+  it back. This list is GM-only.
 - **Locations** - the map, nested under each other so you can always answer
   "where is this" by looking one level up.
 - **Sessions** - prep the next one (a strong opening, potential scenes,
@@ -219,7 +248,9 @@ can be linked to one of your saved **maps** (with an "Open map" shortcut). A
 map belongs to one campaign's location at a time - linking it somewhere else
 moves it. **Export** (campaign page) downloads the whole campaign as a Markdown
 file, with a "player-safe" version that leaves out the GM-only parts (secrets,
-hidden motives, unrevealed threads) so you can hand it to your players.
+hidden motives, unrevealed threads, faction standing, ties and clocks) so you
+can hand it to your players. The player-safe version only shows a secret once
+you have revealed it, under "What the party has learned".
 
 ## Maps
 
@@ -304,7 +335,15 @@ Each saved map has three extra ways to put it in front of players:
   can be renamed, recoloured, resized and marked **Hidden** - a hidden token
   shows dashed on your screen and is never sent to the player view, so you can
   set up an ambush. The fog layer stays on top of the tokens, and tokens are
-  left out of the saved/downloaded map and the print page.
+  left out of the saved/downloaded map and the print page. **Tokens and the
+  initiative tracker:** *Add everyone from the initiative tracker* makes a token
+  for each combatant on the game's board (foes start hidden unless you untick
+  that), and a token can be linked to a combatant by hand. A gold ring marks
+  whose turn it is, **Next turn** advances the tracker from the map page, and a
+  token whose combatant has dropped to zero hit points shows a red cross. The
+  player view gets only the ring and the cross - never hit points, conditions or
+  the combatant's name - and hidden tokens still never leave the GM's page.
+  Tokens whose combatant left the tracker can be cleaned up in one click.
 - **Handouts** are a letter, a rumour or a picture you can put on the player
   view. Create them on the map page (text, or an image upload: PNG, JPEG, GIF
   or WebP up to 4 MB), then **Show to players** - it opens as a full-screen
@@ -314,6 +353,46 @@ Each saved map has three extra ways to put it in front of players:
 - Fog is a **visual cover only**. It hides the map on screen, but the full map
   is still in the page's source, so a player who knows how to "View Source"
   could see it. Use it at the table, not as a secret-keeper.
+
+### Room keys
+
+Dungeon and Building Interior maps have a **Room key** card: **Generate key**
+writes an entry for every numbered room (what the players see, what is hiding
+there, any secret or locked doors, which rooms it connects to) in plain words,
+not game statistics, so it works for any game. Each room's entry is editable;
+**Creatures from** lets you pull the creatures from one of your own random tables
+instead of the built-in list; with an AI model connected, each entry also has a
+button to flesh it out. Click a room on the map and its entry opens. **Print the
+key** gives a clean page to keep beside the map. The key is stored
+alongside the map, separate from its drawing.
+
+### Linked maps
+
+A map can point to other maps: a settlement on a world map to its own city map,
+a city to a building, a dungeon level to the one below (and back up). The
+**Linked maps** card lists what this map connects to. Each settlement it finds
+on a world map gets a **Make its map** button that draws a city in the same game,
+campaign and style and links the two (the row turns into **Open its map**).
+Dungeons, interiors and caves get **Add a level below** and **Add a level above**
+(it notes which rooms have stairs), a city gets **Add a building interior**, and
+**Link an existing map** joins two maps you already have. Clicking a settlement
+on the map jumps to its row in the card. Unlinking never deletes either map.
+
+### Exporting to a virtual tabletop
+
+The **Export to a virtual tabletop** card (dungeon, interior, caves and city
+maps) downloads a Universal VTT file (`.dd2vtt`): the map image drawn to the grid
+you choose (pixels per square) plus walls and doors for dynamic lighting. Walls
+and doors are worked out from the map's saved seed, so they only exist for Ink
+dungeons, interiors and caves; everything else (cities, Classic-style maps, or a
+map whose drawing no longer matches what its seed produces) is exported as the
+image on the right grid with no walls, and the card says so.
+Secret doors become plain wall, and locked doors export as closed doors.
+
+> **Not tested against a real tabletop.** The file follows the published
+> Universal VTT format and its walls were checked by drawing them over the map,
+> but it has not been imported into Foundry VTT, Roll20, Fantasy Grounds or
+> anything else. Import one map and check the walls and doors before relying on it.
 
 ### Editing a saved map
 
@@ -449,12 +528,39 @@ Wolf x2 (hp 11)
 ```
 
 Only the name is required. `init` is a number, a roll, or a bare `+2` (meaning
-`1d20+2`); leave it out and each foe rolls 1d20. **Load into tracker** puts
+`1d20+2`); leave it out and each foe rolls 1d20. Two more options are only used
+by the fight builder below: `attacks 3` (attacks per round) and `mdc` (the hit
+points are mega-damage capacity, as in Rifts); a group marked `mdc` shows
+"M.D.C." in its note on the board. **Load into tracker** puts
 the foes on the board (each rolls its own initiative), **Save foes on the
 board** keeps whatever non-PC combatants are on it now, and the text of a
 saved encounter is editable in place and auto-saves. PCs are never part of a
 saved encounter, so they stay on the board between fights. The Library's
 **Stat block** panel (see below) can also add a creature to a saved encounter.
+
+### Fight builder: a rough "how hard is this?"
+
+The **Encounters** page starts with a **Fight builder**. Enter your party (name,
+hit points, attacks per round; it is saved per game, and one click copies the PCs
+from the initiative tracker), type the foes in the same one-line-per-group format,
+choose how hard the foes hit compared with your party, and press **Rate this
+fight**. You get a band (Easy, Fair, Hard, Deadly or Overwhelming), the projected
+result of a straight fight, the two sides' numbers, and a list of what the guide
+leaves out for that game. **Save as encounter** keeps the foes for the tracker.
+
+Rifts, Palladium Fantasy and Heroes Unlimited have no challenge ratings or XP
+budgets to follow, so **this is not an official rule**. It compares each side's
+attacks per round times hit points times damage and shows the ratio, which is the
+square law for a fight where everyone keeps attacking until one side is gone.
+That ignores armor, magic, psionics, special powers, tactics, terrain and
+surprise, all of which matter, so treat it as a gut check. For Rifts one M.D.C. is
+treated as 100 S.D.C. when a fight mixes the two, and the guide warns that
+S.D.C. weapons generally cannot hurt M.D.C. targets at all. For D&D and other d20
+games it tells you to prefer the book's own encounter rules.
+
+The defaults (how many attacks a PC or a foe makes per round in each game) and
+the band cut-offs are this app's own rough choices, not figures from any book.
+They are in `app/data/difficulty_guide.json`, and you can edit them.
 
 ## Library search and Ask the Library
 
@@ -496,7 +602,8 @@ app/
   main.py              app setup (lifespan, middleware, router wiring)
   web.py               shared templates + page context
   routers/             one module per area: dashboard, settings, games, library,
-                         bookmarks, campaigns, maps, live, screen, tools, tables, ops
+                         bookmarks, campaigns, campaign_world, maps, live, screen, tools,
+                         tables, ops
   config.py            static paths / defaults
   database.py          SQLite schema + helpers
   security.py          optional password (HTTP Basic) middleware
@@ -505,7 +612,14 @@ app/
   recent.py            "pick up where you left off" (recent campaigns/maps/sessions)
   jump.py              quick-jump search across everything you've made
   session_log.py       per-session running log (notes, scenes, combat, loot, clues, rolls)
-  saved_encounters.py  reusable initiative line-ups
+  saved_encounters.py  reusable initiative line-ups (incl. attacks / mdc options)
+  encounter_guide.py   fight builder: party storage and the rough difficulty guide
+  campaign_world.py    secrets & clues, progress clocks, faction standing, NPC/faction ties
+  autobackup.py        scheduled "my data" backups with retention
+  room_keys.py         numbered room keys for dungeon / interior maps
+  map_links.py         links between maps (settlement -> city, level below / above)
+  token_combat.py      map tokens linked to the initiative tracker
+  vtt_export.py        Universal VTT (.dd2vtt) export of a saved map
   handouts.py          text / image handouts shown on the player view
   map_tokens.py        movable map tokens
   live.py              live table state (what the player view polls)
@@ -531,6 +645,7 @@ app/
     content.py                 genre word banks (data/map_content.json) + name generator
     shapes.py                   shared subdivision + minimum-spanning-tree helpers
     svg.py                       small SVG-string builder helpers
+    vtt.py                        walls / doors / grid geometry for the VTT export
   library/
     games.py            games.json loader (Series -> game mapping)
     scanner.py           walks the library folder, populates the books table
@@ -542,7 +657,8 @@ app/
   tools/
     dice.py, npc_generator.py, initiative.py, encounters.py
   data/
-    games.json, npc_data.json, encounter_tables.json   (all user-editable)
+    games.json, npc_data.json, encounter_tables.json, difficulty_guide.json,
+    map_content.json, room_key_content.json            (all user-editable)
   templates/, static/    Jinja2 + vanilla JS/CSS, no build step
 ```
 
@@ -582,12 +698,14 @@ A few things worth knowing before running it on a whole library:
 
 ## Running the tests
 
-There's a pytest suite (several hundred tests) covering the pure-logic
+There's a pytest suite (more than a thousand tests) covering the pure-logic
 pieces of the app and the web routes: the dice parser, all the map-generation
 logic, the campaign planner and its exports, bookmarks, the saved-maps store
 (including fog of war), the GM Screen, random tables, library search and Ask
 the Library, quick jump, the session log, saved encounters, stat-block
-extraction, map tokens and handouts, backups, the optional password, the database schema/migration
+extraction, map tokens and handouts, backups and the automatic backup schedule, room keys,
+the VTT export, linked maps, tokens linked to the initiative tracker, campaign secrets, clocks and
+ties, the fight builder, the optional password, the database schema/migration
 logic, and the games.json series-to-game mapping. Every page has a smoke test
 that checks it still renders.
 
@@ -635,5 +753,15 @@ build.
   polling every couple of seconds, not instantly.
 - "Ask the Library" is only as good as the model you connect and the text
   that was extracted; always check the cited pages for rules you'll rely on.
+- The **VTT export has not been tested against a real virtual tabletop** (see
+  above). Walls and doors exist only for Ink dungeons, interiors and caves.
+- Automatic backups live on the same disk as the database: they guard against
+  mistakes and a corrupted database, not a dead disk. Copy the folder elsewhere
+  now and then.
+- Room keys are for Dungeon and Building Interior maps only, and are written in
+  plain words rather than game statistics.
+- The fight builder's difficulty guide is a rough comparison, not a rule from any
+  game, and its default attacks per round and cut-offs are this app's own
+  estimates (see above).
 - Single-user. The optional password is basic protection for a trusted
   network, not multi-user accounts.

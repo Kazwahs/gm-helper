@@ -48,14 +48,20 @@ def live_state(map_id):
     m = maps_store.get_map(map_id)
     if not m:
         return None
+    from . import token_combat  # imported here: token_combat itself needs this module
+
     reveal = maps_store.get_reveal(map_id)
     with database.get_cursor() as cur:
         v = cur.execute("SELECT live_v FROM maps WHERE id = ?", (map_id,)).fetchone()["live_v"]
+    # tokens linked to the initiative tracker show whose turn it is and who is down
+    visible = token_combat.decorate(map_id, map_tokens.list_tokens(map_id, include_hidden=False),
+                                    m["game_key"], for_players=True)
+    combat_v = token_combat.version_part(map_id, m["game_key"])
     return {
-        "v": f"{reveal['v']}.{v}",
+        "v": f"{reveal['v']}.{v}" + (f".{combat_v}" if combat_v else ""),
         "reveal": reveal,
-        "tokens": [{k: t[k] for k in ("id", "label", "x", "y", "color", "size")}
-                   for t in map_tokens.list_tokens(map_id, include_hidden=False)],
+        "tokens": [{k: t[k] for k in ("id", "label", "x", "y", "color", "size", "current", "down") if k in t}
+                   for t in visible],
         "token_radius": token_radius(m),
         "handout": handouts.shown_on_map(map_id),
     }

@@ -252,6 +252,106 @@ CREATE TABLE IF NOT EXISTS maps (
 CREATE INDEX IF NOT EXISTS idx_maps_game_key ON maps(game_key);
 CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
 
+-- One row per numbered room on a dungeon/interior map: the GM's room key.
+CREATE TABLE IF NOT EXISTS map_room_keys (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    map_id      INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    room        INTEGER NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    kind        TEXT NOT NULL DEFAULT 'empty',   -- empty / creatures / trap / puzzle / treasure
+    description TEXT NOT NULL DEFAULT '',        -- what the players see (read aloud)
+    contents    TEXT NOT NULL DEFAULT '',        -- creatures, trap or puzzle - GM only
+    treasure    TEXT NOT NULL DEFAULT '',
+    secrets     TEXT NOT NULL DEFAULT '',        -- secret and locked doors, hidden things
+    notes       TEXT NOT NULL DEFAULT '',        -- the GM's own notes
+    exits       TEXT NOT NULL DEFAULT '',
+    size        TEXT NOT NULL DEFAULT '',
+    updated_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE (map_id, room)
+);
+CREATE INDEX IF NOT EXISTS idx_map_room_keys_map ON map_room_keys(map_id);
+
+-- A map that leads to another: a settlement to its city, a dungeon level to the next one down.
+CREATE TABLE IF NOT EXISTS map_links (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_map_id INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    to_map_id   INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'detail',   -- detail / below / above (from the "from" map's point of view)
+    label       TEXT NOT NULL DEFAULT '',         -- e.g. the settlement this map is the city of
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE (from_map_id, to_map_id)
+);
+CREATE INDEX IF NOT EXISTS idx_map_links_from ON map_links(from_map_id);
+CREATE INDEX IF NOT EXISTS idx_map_links_to ON map_links(to_map_id);
+
+-- Secrets and clues the GM has prepared, and whether the party has learned them yet.
+CREATE TABLE IF NOT EXISTS campaign_secrets (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id         INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    text                TEXT NOT NULL,
+    source              TEXT NOT NULL DEFAULT '',   -- where or how the party can find it out
+    session_id          INTEGER REFERENCES campaign_sessions(id) ON DELETE SET NULL,  -- prepped for
+    status              TEXT NOT NULL DEFAULT 'hidden',  -- hidden / revealed
+    revealed_session_id INTEGER REFERENCES campaign_sessions(id) ON DELETE SET NULL,
+    revealed_at         TEXT,
+    created_at          TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_secrets_campaign ON campaign_secrets(campaign_id);
+
+-- Progress clocks ("the ritual is 3 of 6 done"), for a faction or on their own.
+CREATE TABLE IF NOT EXISTS campaign_clocks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    faction_id  INTEGER REFERENCES campaign_factions(id) ON DELETE SET NULL,
+    name        TEXT NOT NULL,
+    segments    INTEGER NOT NULL DEFAULT 6,
+    filled      INTEGER NOT NULL DEFAULT 0,
+    note        TEXT NOT NULL DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_clocks_campaign ON campaign_clocks(campaign_id);
+
+-- Who stands where: ties between NPCs and factions ("Marlowe owes the Guild").
+CREATE TABLE IF NOT EXISTS campaign_relationships (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    a_kind      TEXT NOT NULL,   -- npc / faction
+    a_id        INTEGER NOT NULL,
+    b_kind      TEXT NOT NULL,
+    b_id        INTEGER NOT NULL,
+    kind        TEXT NOT NULL DEFAULT 'ally',
+    note        TEXT NOT NULL DEFAULT '',
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE (campaign_id, a_kind, a_id, b_kind, b_id)
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_relationships_campaign ON campaign_relationships(campaign_id);
+CREATE TRIGGER IF NOT EXISTS trg_campaign_npcs_delete_ties AFTER DELETE ON campaign_npcs
+BEGIN
+    DELETE FROM campaign_relationships
+     WHERE (a_kind = 'npc' AND a_id = OLD.id) OR (b_kind = 'npc' AND b_id = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_factions_delete_ties AFTER DELETE ON campaign_factions
+BEGIN
+    DELETE FROM campaign_relationships
+     WHERE (a_kind = 'faction' AND a_id = OLD.id) OR (b_kind = 'faction' AND b_id = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_secrets_insert_touch AFTER INSERT ON campaign_secrets
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_secrets_update_touch AFTER UPDATE ON campaign_secrets
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_clocks_insert_touch AFTER INSERT ON campaign_clocks
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_clocks_update_touch AFTER UPDATE ON campaign_clocks
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+
 -- Handouts (text or an image) a GM can put on a map's player view, and tokens
 -- dragged around on a map. See handouts.py and map_tokens.py.
 CREATE TABLE IF NOT EXISTS handouts (
@@ -382,6 +482,12 @@ def init_db():
     _ensure_column("maps", "reveal_json", "TEXT")
     _ensure_column("maps", "shown_handout_id", "INTEGER REFERENCES handouts(id) ON DELETE SET NULL")
     _ensure_column("maps", "live_v", "INTEGER NOT NULL DEFAULT 0")
+    # How a faction stands with the party (see campaign_world.py).
+    _ensure_column("campaign_factions", "standing", "TEXT NOT NULL DEFAULT 'neutral'")
+    # A map token can stand for a combatant in the initiative tracker (see token_combat.py).
+    # The name is kept too, so a token never follows a *different* combatant after a tracker reset.
+    _ensure_column("map_tokens", "combatant_id", "INTEGER")
+    _ensure_column("map_tokens", "combatant_name", "TEXT")
     # A GM Screen card can be a pinned book page (opens the PDF at that page).
     _ensure_column("gm_screen_cards", "book_id", "INTEGER")
     _ensure_column("gm_screen_cards", "page_number", "INTEGER")

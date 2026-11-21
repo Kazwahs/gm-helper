@@ -575,7 +575,8 @@ def generate(rng, genre, map_type, params):
         parts.append(svg.text(px + (-(r + 5) if left else r + 5), py + 3.4, name, size=11 if is_city else 9.5,
                               fill=pal["label"], anchor="end" if left else "start",
                               weight="bold" if is_city else "normal", extra='class="map-el-label"'))
-        el_parts.append(svg.map_el("settlement", px, py, "".join(parts), fill=pal["marker"]))
+        el_parts.append(svg.map_el("settlement", px, py, "".join(parts), fill=pal["marker"],
+                                   attrs={"name": name, "tier": "city" if is_city else "town" if is_town else "village"}))
     poi_scale = 8.5
     for p in pois:
         icon = objects.render_icon(p["icon"], p["cx"], p["cy"], poi_scale, pal["poi"])

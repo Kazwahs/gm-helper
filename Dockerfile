@@ -13,6 +13,11 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY app ./app
 COPY run.py .
 
+# Startup smoke check: fail the *build* - not the running container - if any file has a
+# syntax error on this Python version or the app can't be imported. (An image that
+# builds but crashes on start is worse than one that never gets built.)
+RUN python -m compileall -q app && python -c "import app.main"
+
 # Persistent state (the SQLite DB + editable games.json) is controlled at
 # *run* time via GM_HELPER_DATA_DIR (or the individual GM_HELPER_DB_PATH /
 # GM_HELPER_GAMES_CONFIG_PATH overrides) - see app/config.py. Deliberately no

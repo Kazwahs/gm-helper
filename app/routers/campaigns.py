@@ -51,6 +51,7 @@ def campaign_detail_page(request: Request, campaign_id: int):
         "game": games_module.get_game(game_key),
         "game_key": game_key,
         "books": campaigns_module.books_for_game(game_key),
+        "standings": campaigns_module.STANDINGS,
         "log_default_session": (session_log.default_session(campaign_id) or {}).get("id"),
         "log_counts": session_log.counts_by_session(campaign_id),
         "log_kinds": session_log.KIND_LABELS,

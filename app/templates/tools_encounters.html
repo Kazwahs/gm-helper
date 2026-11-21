@@ -3,6 +3,51 @@
 {% block content %}
 <h1>Random Encounters &amp; Loot{% if game %} - {{ game.name }}{% endif %}</h1>
 
+<div class="card" id="builder-card" data-game="{{ guide_game }}">
+  <h3>Fight builder</h3>
+  <p class="muted">
+    Put in your party and the foes and get a <strong>rough</strong> idea of how hard the fight is.
+    This is this app&rsquo;s own comparison of hit points and attacks per round, not a rule from any game book,
+    and it leaves out armor, magic, and tactics. Treat it as a gut check.
+  </p>
+  <p class="muted" id="builder-profile"></p>
+
+  <h4 style="margin:0.8rem 0 0.3rem;">Your party</h4>
+  <table class="party-table">
+    <thead><tr><th>Name</th><th>Hit points</th><th id="party-mdc-head" title="Tick if the number is mega-damage capacity">M.D.C.</th><th>Attacks / round</th><th></th></tr></thead>
+    <tbody id="party-body"></tbody>
+  </table>
+  <div class="row" style="margin-top:0.4rem;">
+    <button type="button" id="party-add" class="secondary">+ Add member</button>
+    <button type="button" id="party-board" class="secondary" title="Copies the PCs (with hit points) from the initiative tracker">Fill from the initiative tracker</button>
+    <span class="muted" id="party-msg" role="status"></span>
+  </div>
+
+  <h4 style="margin:1rem 0 0.3rem;">The foes</h4>
+  <div class="row" style="margin-bottom:0.4rem;">
+    <select id="saved-pick" aria-label="Start from a saved encounter"></select>
+  </div>
+  <textarea id="foes-body" rows="5" maxlength="4000" aria-label="Foes, one group per line"
+    placeholder="4x Goblin (hp 7, attacks 2)&#10;Ogre (hp 59, attacks 2)&#10;Dragon Hatchling (hp 150, mdc, attacks 3)"></textarea>
+  <p class="muted" style="margin:0.3rem 0 0;">
+    One group per line. <code>hp</code> is needed; <code>attacks</code> (per round) and <code>mdc</code> are optional.
+    The same lines work in the initiative tracker&rsquo;s saved encounters.
+  </p>
+
+  <div class="row" style="margin-top:0.8rem;">
+    <label class="field-label" for="foe-hits" style="margin:0;">How hard the foes hit</label>
+    <select id="foe-hits"></select>
+    <button type="button" id="rate-btn">Rate this fight</button>
+  </div>
+  <p class="muted" id="builder-msg" role="status" style="margin:0.4rem 0 0;"></p>
+  <div id="guide-out" class="guide-out" hidden></div>
+
+  <div class="row" style="margin-top:0.8rem;">
+    <input type="text" id="save-name" maxlength="80" placeholder="Save these foes as an encounter named&hellip;" aria-label="Encounter name" style="flex:1; min-width:220px;">
+    <button type="button" id="save-enc" class="secondary">Save as encounter</button>
+  </div>
+</div>
+
 <div class="card">
   <h3>Encounter</h3>
   <div class="row">
@@ -31,6 +76,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="{{ asset('encounter_builder.js') }}"></script>
 <script>
 const notesGame = {{ (game.key if game else "_global") | tojson }};
 let lastEncounter = '', lastLoot = '';

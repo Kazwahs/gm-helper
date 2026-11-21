@@ -342,12 +342,19 @@ function drawTokens(svg, tokens, radius, showLabels = true) {
       transform: `translate(${t.x},${t.y})`, "data-id": String(t.id),
     });
     const title = make("title", {});
-    title.textContent = t.label + (t.hidden ? " (hidden from players)" : "");
+    title.textContent = t.label + (t.hidden ? " (hidden from players)" : "") + (t.down ? " (down)" : "") + (t.current ? " - their turn" : "");
     g.appendChild(title);
+    if (t.current && !t.down) {
+      // a gold ring marks whose turn it is in the initiative order
+      g.appendChild(make("circle", {
+        r: (r * 1.32).toFixed(2), fill: "none", stroke: "#ffd54a", "stroke-width": (r * 0.2).toFixed(2),
+        "pointer-events": "none", "class": "token-turn-ring",
+      }));
+    }
     g.appendChild(make("circle", {
       r, fill: t.color, stroke: t.hidden ? "#ffcf5c" : "#fff", "stroke-width": (r * 0.14).toFixed(2),
       "stroke-dasharray": t.hidden ? `${(r * 0.35).toFixed(2)} ${(r * 0.25).toFixed(2)}` : "none",
-      opacity: t.hidden ? 0.6 : 1,
+      opacity: t.hidden ? 0.6 : (t.down ? 0.45 : 1),
     }));
     const initialsEl = make("text", {
       "text-anchor": "middle", "dominant-baseline": "central", "font-size": (r * 0.95).toFixed(2),
@@ -355,6 +362,14 @@ function drawTokens(svg, tokens, radius, showLabels = true) {
     });
     initialsEl.textContent = initials(t.label);
     g.appendChild(initialsEl);
+    if (t.down) {
+      // a red cross over a token that has dropped (hit points at or below zero)
+      const k = r * 0.7;
+      g.appendChild(make("path", {
+        d: `M${-k} ${-k}L${k} ${k}M${k} ${-k}L${-k} ${k}`, stroke: "#d32f2f", "stroke-width": (r * 0.28).toFixed(2),
+        "stroke-linecap": "round", fill: "none", "pointer-events": "none", "class": "token-down-cross",
+      }));
+    }
     if (showLabels) {
       const labelEl = make("text", {
         y: (r * 1.75).toFixed(2), "text-anchor": "middle", "font-size": (r * 0.75).toFixed(2),

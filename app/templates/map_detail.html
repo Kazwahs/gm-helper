@@ -84,6 +84,80 @@
   <p class="muted" id="fog-hint" style="margin-bottom:0;" hidden></p>
 </div>
 
+<div class="card" id="links-card" data-map="{{ map.id }}" data-type="{{ map.map_type }}">
+  <h3 style="margin-top:0;">Linked maps</h3>
+  <p class="muted">
+    Connect this map to the ones around it: a settlement to its city, a city to a building, a dungeon level to the
+    one below. New maps are made in the same game, campaign and style as this one.
+  </p>
+  <div id="links-list" class="link-list" aria-label="Linked maps"></div>
+  <div class="row" id="links-actions" style="margin-top:0.6rem;"></div>
+  <div id="links-settlements" class="link-list" style="margin-top:0.6rem;"></div>
+  <details style="margin-top:0.75rem;">
+    <summary>Link an existing map</summary>
+    <div class="row" style="margin-top:0.6rem;">
+      <select id="links-other" aria-label="Map to link"></select>
+      <select id="links-kind" aria-label="How it relates">
+        <option value="detail">is a detail map of this one</option>
+        <option value="below">is the level below</option>
+        <option value="above">is the level above</option>
+      </select>
+      <button type="button" id="links-add" class="secondary">Link it</button>
+    </div>
+  </details>
+  <p class="muted" id="links-msg" role="status" style="margin:0.4rem 0 0;"></p>
+</div>
+
+{% if vtt_supported %}
+<div class="card" id="vtt-card" data-map="{{ map.id }}">
+  <h3 style="margin-top:0;">Export to a virtual tabletop</h3>
+  <p class="muted">
+    Makes a Universal VTT file (<code>.dd2vtt</code>) that Foundry VTT, Roll20 (through its importer), Fantasy Grounds
+    and other tabletops can import: the map image on the right grid, plus walls and doors for dynamic lighting where
+    this map has them. It follows the published format, so check the walls in your tabletop before game night.
+  </p>
+  <div class="row">
+    <label class="inline-check">Pixels per square
+      <select id="vtt-ppg" aria-label="Pixels per grid square">
+        <option value="50">50 (smaller file)</option>
+        <option value="70" selected>70 (Roll20 standard)</option>
+        <option value="100">100 (Foundry default)</option>
+        <option value="140">140 (very sharp)</option>
+      </select>
+    </label>
+    <button type="button" id="vtt-download">Download .dd2vtt</button>
+    <span class="muted" id="vtt-msg" role="status"></span>
+  </div>
+  <p class="muted" id="vtt-note" style="margin:0.4rem 0 0;"></p>
+</div>
+{% endif %}
+
+{% if key_supported %}
+<div class="card" id="key-card" data-map="{{ map.id }}">
+  <h3 style="margin-top:0;">Room key</h3>
+  <p class="muted">
+    What is in each numbered room: what the players see, what is hiding there, and any secret or locked doors.
+    It is a starting point written in plain words, not game statistics &mdash; edit anything you like.
+    Click a room on the map to jump to its entry.
+  </p>
+  <div class="row">
+    <button type="button" id="key-generate">Generate key</button>
+    {% if key_tables %}
+    <label class="inline-check">Creatures from
+      <select id="key-table" aria-label="Table to roll creatures from">
+        <option value="">built-in list</option>
+        {% for t in key_tables %}{% if t.entry_count %}<option value="{{ t.id }}">{{ t.name }}</option>{% endif %}{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <a class="button-link" id="key-print" href="/maps/{{ map.id }}/key" target="_blank" rel="noopener" hidden>Print the key</a>
+    <button type="button" id="key-clear" class="secondary danger" hidden>Clear key</button>
+    <span class="muted" id="key-msg" role="status"></span>
+  </div>
+  <div id="key-list" class="key-list" aria-label="Room key"></div>
+</div>
+{% endif %}
+
 <div class="card" id="token-card">
   <h3 style="margin-top:0;">Tokens</h3>
   <p class="muted">
@@ -101,6 +175,18 @@
     <button type="button" id="place-token-btn">Place on map&hellip;</button>
   </div>
   <p class="muted" id="token-hint" role="status" style="margin:0.4rem 0 0;" hidden></p>
+  <div class="combat-bar" id="combat-bar">
+    <div class="row">
+      <button type="button" id="combat-add" class="secondary">Add everyone from the initiative tracker</button>
+      <label class="inline-check"><input type="checkbox" id="combat-hide-foes" checked> Foes start hidden</label>
+      <a href="/tools/initiative?game={{ map.game_key }}" target="_blank" rel="noopener">Open the tracker</a>
+    </div>
+    <div class="row" style="margin-top:0.4rem;">
+      <span id="combat-status" class="muted" role="status"></span>
+      <button type="button" id="combat-next" class="secondary" hidden>Next turn</button>
+      <button type="button" id="combat-orphans" class="secondary danger" hidden>Remove tokens that left the tracker</button>
+    </div>
+  </div>
   <div id="token-list" class="token-list" aria-label="Tokens on this map"></div>
   <div class="row" style="margin-top:0.6rem;">
     <button type="button" id="clear-tokens-btn" class="secondary danger" hidden>Remove all tokens</button>
@@ -144,6 +230,9 @@
 </div>
 {% endblock %}
 {% block scripts %}
+<script src="{{ asset('room_key.js') }}"></script>
+<script src="{{ asset('vtt_export.js') }}"></script>
+<script src="{{ asset('map_links.js') }}"></script>
 <script>
 const mapId = {{ map.id }};
 const gameKey = {{ map.game_key | tojson }};
@@ -297,6 +386,18 @@ function makeLabelEl(cx, cy, labelText) {
   return g;
 }
 
+// Rooms and settlements carry their name (and a room its feature) as data attributes - the room
+// key and the linked-maps panel are built from them - so keep those in step when labels are edited.
+function syncRoomFacts(g) {
+  if (!g || !g.hasAttribute('data-name')) return;
+  if (g.dataset.kind !== 'room' && g.dataset.kind !== 'settlement') return;
+  const own = [...g.querySelectorAll('.map-el-label')].filter((n) => n.closest('.map-el') === g);
+  g.setAttribute('data-name', own.filter((n) => n.dataset.role !== 'feature').map((n) => n.textContent.trim()).join(' ').trim());
+  if (g.hasAttribute('data-feature')) {
+    g.setAttribute('data-feature', own.filter((n) => n.dataset.role === 'feature').map((n) => n.textContent.trim()).join(' ').trim());
+  }
+}
+
 function renderPanel() {
   const panel = document.getElementById('editor-panel');
   panel.innerHTML = '';
@@ -316,7 +417,10 @@ function renderPanel() {
   const labelEls = [...selectedEl.querySelectorAll('.map-el-label')].filter((n) => n.closest('.map-el') === selectedEl);
   labelEls.forEach((labelEl, i) => {
     const labelInput = el('input', {type: 'text', value: labelEl.textContent});
-    labelInput.addEventListener('input', () => { labelEl.textContent = labelInput.value; });
+    labelInput.addEventListener('input', () => {
+      labelEl.textContent = labelInput.value;
+      syncRoomFacts(selectedEl);
+    });
     panel.appendChild(el('div', {class: 'field-group'}, [
       el('label', {class: 'field-label'}, labelEls.length > 1 ? `Label text (line ${i + 1})` : 'Label text'),
       labelInput,
@@ -589,9 +693,84 @@ function renderTokenList() {
     del.addEventListener('click', async () => {
       if (await tokenCall(`/api/map-tokens/${t.id}/delete`, {})) { tokens = tokens.filter((x) => x.id !== t.id); redrawTokens(); }
     });
-    return el('div', {class: 'token-row'}, [color, label, size, hide, del]);
+    const row = [color, label, size, hide];
+    if (combatants.length || t.combatant_id) {
+      const link = el('select', {'aria-label': 'Initiative combatant for this token'},
+        [el('option', {value: ''}, t.orphan ? 'Left the tracker' : 'Not in the tracker'),
+         ...combatants.map((c) => {
+           const o = el('option', {value: String(c.id)}, c.name);
+           if (c.id === t.combatant_id && !t.orphan) o.selected = true;
+           return o;
+         })]);
+      link.addEventListener('change', async () => {
+        const res = await tokenCall(`/api/map-tokens/${t.id}/link`, {combatant_id: link.value});
+        if (res) applyCombat(res); else renderTokenList();
+      });
+      row.push(link);
+    }
+    if (t.combatant_id && !t.orphan) {
+      const bits = [];
+      if (t.current) bits.push('\u25b6 their turn');
+      if (t.hp !== null && t.hp !== undefined) bits.push(`${t.hp}${t.max_hp ? '/' + t.max_hp : ''} HP`);
+      if (t.down) bits.push('down');
+      if (t.conditions && t.conditions.length) bits.push(t.conditions.join(', '));
+      if (bits.length) row.push(el('span', {class: 'token-combat-info muted'}, bits.join(' \u00b7 ')));
+      if (t.hp !== null && t.hp !== undefined) {
+        const hit = el('button', {type: 'button', class: 'secondary', 'aria-label': `Damage or heal ${t.label}`}, 'Hit');
+        hit.addEventListener('click', async () => {
+          const text = window.prompt(`Damage to ${t.label}? (a minus sign, like -5, heals)`, '');
+          if (text === null || text.trim() === '') return;
+          const amount = parseInt(text, 10);
+          if (Number.isNaN(amount)) { sayToken('Type a whole number.'); return; }
+          const res = await tokenCall(`/api/maps/${mapId}/combat/hit`, {combatant_id: t.combatant_id, delta: -amount});
+          if (res) applyCombat(res);
+        });
+        row.push(hit);
+      }
+    }
+    row.push(del);
+    return el('div', {class: 'token-row'}, row);
   }));
 }
+
+// ---- tokens that stand for combatants in the initiative tracker
+let combatants = [];
+const combatStatus = document.getElementById('combat-status');
+const combatNext = document.getElementById('combat-next');
+const combatOrphans = document.getElementById('combat-orphans');
+
+function applyCombat(res) {
+  tokens = res.tokens;
+  combatants = res.combatants || [];
+  combatStatus.textContent = res.round
+    ? `Round ${res.round}` + (res.current ? ` \u00b7 ${res.current}'s turn` : '')
+    : 'Nobody is in the initiative tracker yet.';
+  combatNext.hidden = !combatants.length;
+  combatOrphans.hidden = !res.orphans;
+  redrawTokens();
+}
+
+async function refreshCombat() {
+  try { applyCombat(await (await fetch(`/api/maps/${mapId}/combat`, {cache: 'no-store'})).json()); }
+  catch (err) { /* offline: the page keeps what it has */ }
+}
+
+document.getElementById('combat-add').addEventListener('click', async () => {
+  const res = await tokenCall(`/api/maps/${mapId}/combat/add`, {foes_hidden: document.getElementById('combat-hide-foes').checked ? 1 : 0});
+  if (!res) return;
+  applyCombat(res);
+  sayToken(res.added ? `Added ${res.added} token${res.added === 1 ? '' : 's'}.` + (res.skipped ? ` ${res.skipped} didn't fit: the map is full.` : '')
+                       : (combatants.length ? 'Everyone in the tracker already has a token.' : 'The initiative tracker is empty.'));
+});
+combatNext.addEventListener('click', async () => {
+  const res = await tokenCall(`/api/maps/${mapId}/combat/next`, {});
+  if (res) applyCombat(res);
+});
+combatOrphans.addEventListener('click', async () => {
+  const res = await tokenCall(`/api/maps/${mapId}/combat/remove-orphans`, {});
+  if (res) { applyCombat(res); sayToken(`Removed ${res.removed} token${res.removed === 1 ? '' : 's'}.`); }
+});
+window.addEventListener('focus', refreshCombat);
 
 placeBtn.addEventListener('click', () => {
   if (placingToken) { setPlacing(false); return; }
@@ -754,6 +933,7 @@ document.getElementById('handout-image-form').addEventListener('submit', async (
 });
 
 redrawTokens();
+refreshCombat();
 renderHandouts();
 </script>
 {% endblock %}

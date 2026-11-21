@@ -1,0 +1,65 @@
+{% extends "base_bare.html" %}
+{% block title %}Room key - {{ map.title }}{% endblock %}
+{% block head %}
+<style>
+  body.bare { background: var(--bg); }
+  .key-wrap { max-width: 880px; margin: 0 auto; padding: 1rem; }
+  .key-controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+  .key-map { background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem; margin-bottom: 1rem; }
+  .key-map svg { width: 100%; height: auto; display: block; }
+  /* the key is a paper handout: pen-and-paper effects only slow the print down */
+  .key-map svg [filter] { filter: none !important; }
+  .key-map svg .paper-grain { display: none; }
+  .key-entry { break-inside: avoid; page-break-inside: avoid; border: 1px solid var(--border); border-radius: 6px;
+               padding: 0.5rem 0.75rem; margin-bottom: 0.6rem; background: var(--bg-panel); }
+  .key-entry h3 { margin: 0 0 0.15rem; font-size: 1.05rem; }
+  .key-entry .num { display: inline-block; min-width: 1.6rem; font-weight: bold; }
+  .key-entry .kind { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid var(--border);
+                     border-radius: 999px; padding: 0.05rem 0.5rem; margin-left: 0.4rem; font-weight: normal; }
+  .key-entry .meta { font-size: 0.82rem; margin: 0 0 0.3rem; }
+  .key-entry p { margin: 0.2rem 0; white-space: pre-line; }
+  .key-entry .read { font-style: italic; }
+  .key-entry .tag { font-weight: bold; }
+  @media print {
+    body.bare { background: #fff; color: #000; }
+    .key-controls { display: none !important; }
+    .key-wrap { max-width: none; padding: 0; }
+    .key-entry { background: #fff; border-color: #888; }
+    .key-entry .kind { border-color: #888; }
+    .muted { color: #444 !important; }
+  }
+</style>
+{% endblock %}
+{% block body %}
+<div class="key-wrap">
+  <div class="key-controls">
+    <button type="button" onclick="window.print()">Print this key</button>
+    <a href="/maps/{{ map.id }}">Back to the map</a>
+    <label class="inline-check"><input type="checkbox" id="show-map" checked> Include the map</label>
+  </div>
+  <h1 style="margin:0 0 0.2rem;">{{ map.title }}</h1>
+  <p class="muted" style="margin:0 0 0.8rem;">Room key &middot; {{ game.name if game else map.game_key }}</p>
+  <div class="key-map" id="key-map">{{ map.svg | safe }}</div>
+  {% if not entries %}
+    <p class="muted">This map has no room key yet. Open the map and use <em>Generate key</em> in the Room key card.</p>
+  {% endif %}
+  {% for e in entries %}
+  <div class="key-entry">
+    <h3><span class="num">{{ e.room }}.</span>{{ e.title }}<span class="kind">{{ kinds.get(e.kind, e.kind) }}</span></h3>
+    {% if e.size or e.exits %}
+      <p class="meta muted">{% if e.size %}{{ e.size }} squares{% endif %}{% if e.size and e.exits %} &middot; {% endif %}{% if e.exits %}Exits: {{ e.exits }}{% endif %}</p>
+    {% endif %}
+    {% if e.description %}<p class="read">{{ e.description }}</p>{% endif %}
+    {% if e.contents %}<p><span class="tag">Here:</span> {{ e.contents }}</p>{% endif %}
+    {% if e.treasure %}<p><span class="tag">Treasure:</span> {{ e.treasure }}</p>{% endif %}
+    {% if e.secrets %}<p><span class="tag">Hidden:</span> {{ e.secrets }}</p>{% endif %}
+    {% if e.notes %}<p><span class="tag">Notes:</span> {{ e.notes }}</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+<script>
+document.getElementById('show-map').addEventListener('change', (e) => {
+  document.getElementById('key-map').style.display = e.target.checked ? '' : 'none';
+});
+</script>
+{% endblock %}

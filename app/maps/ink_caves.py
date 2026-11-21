@@ -9,7 +9,7 @@ instead of a pixel map. The rock around it is hatched, the floor gets an
 inner shadow and a scatter of stipple, and labels carry a halo that matches
 the page (the old dark-background maps had pale labels on a pale halo).
 """
-from . import caves, content, ink, objects, svg
+from . import caves, content, ink, objects, svg, vtt
 from .caves import CELL
 from .ink import f
 
@@ -50,9 +50,11 @@ def generate(rng, genre, params):
     loops = ink.contours(field, uw, uh, 0.5)
     loops = [lp for lp in loops if ink.loop_area(lp) >= 6]
     paths = []
+    wall_loops = []
     for lp in loops:
         pts = [(off + x * step, off + y * step) for x, y in lp]
         pts = ink.rdp(pts, 0.9, closed=True)
+        wall_loops.append(pts)
         paths.append(ink.smooth_closed_d(pts))
     floor_d = "".join(paths)
 
@@ -134,4 +136,5 @@ def generate(rng, genre, params):
             "objects": len(placed), "size": params.get("size", "medium"), "style": "ink",
         },
         "title_suggestion": title,
+        "vtt": vtt.cave_geometry(wall_loops, CELL, w, h),
     }

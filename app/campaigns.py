@@ -22,7 +22,8 @@ _CAMPAIGN_FIELDS = {"title", "pitch", "tone", "status"}
 _THREAD_FIELDS = {"title", "description", "stakes", "status"}
 _NPC_FIELDS = {"name", "role", "disposition", "motivation", "secret", "notes", "faction_id", "location_id"}
 _LOCATION_FIELDS = {"name", "description", "parent_id", "map_id"}
-_FACTION_FIELDS = {"name", "goal", "notes"}
+STANDINGS = ("hostile", "unfriendly", "neutral", "friendly", "allied")  # how a faction treats the party
+_FACTION_FIELDS = {"name", "goal", "notes", "standing"}
 _SESSION_FIELDS = {
     "title", "date", "status", "strong_start", "scenes",
     "secrets_clues", "prep_notes", "summary",
@@ -385,6 +386,10 @@ def update_faction_field(faction_id, field, value):
     _require_known_field(field, _FACTION_FIELDS)
     if field in _REQUIRED_TEXT_FIELDS and not (value or "").strip():
         raise ValueError("That field can't be blank.")
+    if field == "standing":
+        value = (value or "").strip().lower()
+        if value not in STANDINGS:
+            raise ValueError("Unknown standing.")
     with database.get_cursor(commit=True) as cur:
         cur.execute(f"UPDATE campaign_factions SET {field} = ? WHERE id = ?", (value, faction_id))
 

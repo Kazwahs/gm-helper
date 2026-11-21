@@ -9,6 +9,8 @@ BUNDLED_DATA_DIR = os.path.join(APP_DIR, "data")
 NPC_DATA_PATH = os.path.join(BUNDLED_DATA_DIR, "npc_data.json")
 ENCOUNTER_DATA_PATH = os.path.join(BUNDLED_DATA_DIR, "encounter_tables.json")
 MAP_CONTENT_PATH = os.path.join(BUNDLED_DATA_DIR, "map_content.json")
+ROOM_KEY_CONTENT_PATH = os.path.join(BUNDLED_DATA_DIR, "room_key_content.json")
+DIFFICULTY_GUIDE_PATH = os.path.join(BUNDLED_DATA_DIR, "difficulty_guide.json")
 # The starting games.json shipped in the image - used to seed a fresh,
 # persistent copy the first time the app runs against an empty data dir.
 DEFAULT_GAMES_CONFIG_PATH = os.path.join(BUNDLED_DATA_DIR, "games.json")

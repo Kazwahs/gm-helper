@@ -461,6 +461,8 @@ def generate(rng, genre, params):
     # legend strip beside the map
     layout_label = _LAYOUT_LABELS[layout]
     title = f"City Districts - {content.GENRE_LABELS[genre]}{layout_label}"
+    if (params.get("name") or "").strip():
+        title = f"{params['name'].strip()} - {title}"
     sx = W_px
     strip = [f'<rect x="{sx}" width="{STRIP}" height="{H_px}" fill="{pal["strip"]}"/>',
              f'<path d="M{sx} 0V{H_px}" stroke="{pal["ink"]}" stroke-width="2"/>',

@@ -2,11 +2,17 @@
 boss") kept per game, ready to drop into the initiative tracker in one click.
 
 An encounter is stored as a list of entries, each {name, quantity, hp,
-initiative, notes}, and edited as plain text, one group per line:
+initiative, notes} (plus `attacks` and `mdc` when given), and edited as plain
+text, one group per line:
 
     4x Goblin (hp 7, init 1d20+2)
     Goblin Boss (hp 21, init 1d20+1, notes: carries the key)
     Wolf x2 (hp 11)
+    Dragon Hatchling (hp 150, mdc, attacks 3)
+
+`attacks` (per round) and `mdc` (the hp are mega-damage capacity) are only
+used by the difficulty guide in encounter_guide.py; they are left off the entry
+unless the line says them.
 
 `init` is a number or a dice roll (a bare "+2" means 1d20+2); leave it out and
 each one rolls 1d20. PCs are not part of a saved encounter - they stay on the
@@ -23,6 +29,7 @@ MAX_NAME = 80
 MAX_NOTES = 200
 MAX_ENTRIES = 40
 MAX_BODY = 4000
+MAX_ATTACKS = 20
 
 _QTY_LEAD = re.compile(r"^(\d+)\s*[x×]\s*(.+)$", re.IGNORECASE)
 _QTY_TRAIL = re.compile(r"^(.+?)\s+[x×]\s*(\d+)$", re.IGNORECASE)
@@ -89,8 +96,14 @@ def parse_line(line, line_no=None):
             entry["hp"] = int(m2.group(1))
         elif m3 := re.fullmatch(r"init(?:iative)?\s*[:=]?\s*(.+)", low):
             entry["initiative"] = _clean_initiative(m3.group(1), line_no)
+        elif re.fullmatch(r"m\.?d\.?c\.?", low):
+            entry["mdc"] = True
+        elif m4 := re.fullmatch(r"attacks?(?:\s+per\s+round)?\s*[:=]?\s*(\d+)", low):
+            entry["attacks"] = int(m4.group(1))
+            if not 1 <= entry["attacks"] <= MAX_ATTACKS:
+                raise ValueError(f"{where}attacks per round must be between 1 and {MAX_ATTACKS}.")
         else:
-            raise ValueError(f"{where}don't understand {part!r} - use hp N, init 1d20+2 or notes: ...")
+            raise ValueError(f"{where}don't understand {part!r} - use hp N, init 1d20+2, attacks N, mdc or notes: ...")
     if entry["hp"] is not None and not 1 <= entry["hp"] <= 100000:
         raise ValueError(f"{where}hp must be a positive number.")
     return entry
@@ -117,6 +130,10 @@ def format_entry(e):
         opts.append(f"hp {e['hp']}")
     if (e.get("initiative") or DEFAULT_INITIATIVE) != DEFAULT_INITIATIVE:
         opts.append(f"init {e['initiative']}")
+    if e.get("mdc"):
+        opts.append("mdc")
+    if e.get("attacks"):
+        opts.append(f"attacks {e['attacks']}")
     if e.get("notes"):
         opts.append(f"notes: {e['notes']}")
     text = (f"{e['quantity']}x " if e.get("quantity", 1) > 1 else "") + e["name"]
@@ -294,9 +311,12 @@ def load_into_tracker(encounter_id, game_key):
         raise ValueError("That encounter is empty - add some foes to it first.")
     state, added = None, 0
     for e in enc["entries"]:
+        notes = e.get("notes") or ""
+        if e.get("mdc") and "m.d.c" not in notes.lower() and "mdc" not in notes.lower():
+            notes = ("M.D.C. " + notes).strip()       # so the board shows what the hp number means
         state = initiative_tool.add_combatant(
             game_key, e["name"], e.get("initiative") or DEFAULT_INITIATIVE, hp=e.get("hp"),
-            is_pc=False, notes=e.get("notes") or "", quantity=e.get("quantity", 1),
+            is_pc=False, notes=notes, quantity=e.get("quantity", 1),
         )
         added += e.get("quantity", 1)
     return {"state": state, "added": added}

@@ -189,6 +189,8 @@ def generate(rng, genre, params):
 
     layout_label = _LAYOUT_LABELS[layout]
     title = f"City Districts - {content.GENRE_LABELS[genre]}{layout_label}"
+    if (params.get("name") or "").strip():
+        title = f"{params['name'].strip()} - {title}"
     body.append(svg.text(10, height_px - 8, title, size=11, fill=pal["text"], weight="bold"))
 
     doc = svg.svg_doc(width_px, height_px, "".join(body))

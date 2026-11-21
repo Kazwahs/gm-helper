@@ -27,7 +27,7 @@ themselves are one drawn piece.
 """
 import math
 
-from . import content, ink, objects, svg
+from . import content, ink, objects, svg, vtt
 from .ink import f
 
 PX = 16  # px per grid square (keep in step with generator.GRID_PX)
@@ -531,7 +531,8 @@ def _make_doors(rng, plan, kind):
                 dk = ("door" if r < 0.42 else "arch" if r < 0.74 else "swing" if r < 0.88 else "locked")
                 if kind == "interior" and dk == "arch" and rng.random() < 0.5:
                     dk = "door"
-            d = {"x": x, "y": y, "axis": c.axis, "width": c.width * PX, "kind": dk, "dir": direction}
+            d = {"x": x, "y": y, "axis": c.axis, "width": c.width * PX, "kind": dk, "dir": direction,
+                 "room": room.idx, "to": (c.b if room is c.a else c.a).idx}
             c.doors.append(d)
             doors.append(d)
     return doors
@@ -764,6 +765,12 @@ def generate(rng, genre, kind, params):
     body.append(f'<g>{door_parts}</g>')
     body.append(secret_marks)
 
+    # what leads out of each room, for the room key ("door to 4, secret door to 7")
+    by_idx = {r.idx: r for r in rooms}
+    exits = {r.idx: [] for r in rooms}
+    for d in doors:
+        exits[d["room"]].append(f'{by_idx[d["to"]].number}:{d["kind"]}')
+
     # rooms: each its own editable element (tint, number, name, furniture)
     room_parts = []
     object_count = 0
@@ -800,8 +807,12 @@ def generate(rng, genre, kind, params):
                 fsize = ink.fit_font(r.feature, avail, 7.5, 6.0)
                 if fsize:
                     el.append(svg.text(cx, ty, r.feature, size=round(fsize, 1), fill=pal["label"],
-                                       anchor="middle", style="italic", extra='class="map-el-label"'))
-        room_parts.append(svg.map_el("room", cx, cy, "".join(el), fill=tint_fill, locked=True))
+                                       anchor="middle", style="italic",
+                                       extra='class="map-el-label" data-role="feature"'))
+        facts = {"room": r.number, "name": r.label or "", "feature": r.feature or "",
+                 "shape": r.shape, "size": f"{r.w}x{r.h}", "stairs": r.stairs or "",
+                 "exits": ",".join(exits[r.idx])}
+        room_parts.append(svg.map_el("room", cx, cy, "".join(el), fill=tint_fill, locked=True, attrs=facts))
     body.append("".join(room_parts))
 
     # title, scale, north arrow
@@ -827,4 +838,5 @@ def generate(rng, genre, kind, params):
             "stairs": len(stair_rooms), "corridors": len(plan.cors), "connected": connected, "style": "ink",
         },
         "title_suggestion": title,
+        "vtt": vtt.rooms_geometry(rooms, plan.cors, doors, spec["w"], spec["h"], PX),
     }

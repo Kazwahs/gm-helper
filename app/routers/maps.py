@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from .. import campaigns as campaigns_module
 from .. import handouts as handouts_module
 from .. import live as live_module
-from .. import map_tokens, maps_store
+from .. import map_links, map_tokens, maps_store, random_tables, room_keys, token_combat, vtt_export
 from ..library import games as games_module
 from ..maps import MAP_TYPES, generate_map
 from ..maps import generator as map_generator
@@ -149,10 +149,13 @@ def map_detail_page(request: Request, map_id: int):
         "campaigns": campaigns_module.list_campaigns(game_key=m["game_key"]),
         "linked_locations": campaigns_module.locations_for_map(map_id),
         "reveal": maps_store.get_reveal(map_id),
-        "tokens": map_tokens.list_tokens(map_id),
+        "tokens": token_combat.decorate(map_id, map_tokens.list_tokens(map_id), m["game_key"]),
         "token_radius": live_module.token_radius(m),
         "handouts": handouts_module.list_handouts(m["game_key"]),
         "shown_handout": handouts_module.shown_on_map(map_id),
+        "key_supported": m["map_type"] in room_keys.KEY_MAP_TYPES,
+        "vtt_supported": vtt_export.supported(m["map_type"]),
+        "key_tables": random_tables.list_tables(m["game_key"]),
     })
     return templates.TemplateResponse(request, "map_detail.html", ctx)
 
@@ -204,3 +207,141 @@ def api_revert_map_svg(map_id: int):
 def api_delete_map(map_id: int):
     maps_store.delete_map(map_id)
     return JSONResponse({"ok": True})
+
+
+# ------------------------------------------------------------------ room key
+
+def _key_map(map_id):
+    m = maps_store.get_map(map_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Unknown map.")
+    return m
+
+
+def _key_payload(m):
+    return {"entries": room_keys.list_entries(m["id"]), "kinds": room_keys.KIND_LABELS,
+            "supported": m["map_type"] in room_keys.KEY_MAP_TYPES, "ai": room_keys.ai_available()}
+
+
+def _key_error(e):
+    return JSONResponse({"ok": False, "error": str(e)}, status_code=e.status)
+
+
+@router.get("/api/maps/{map_id}/key")
+def api_get_key(map_id: int):
+    return JSONResponse({"ok": True, **_key_payload(_key_map(map_id))})
+
+
+@router.post("/api/maps/{map_id}/key/generate")
+def api_generate_key(map_id: int, creature_table: str = Form(""), seed: str = Form("")):
+    m = _key_map(map_id)
+    roller = None
+    if creature_table.strip().isdigit():
+        table = random_tables.get_table(int(creature_table))
+        if not table or table["game_key"] not in (m["game_key"], random_tables.GLOBAL_KEY):
+            return JSONResponse({"ok": False, "error": "That random table isn't available for this game."}, status_code=400)
+        table_id = table["id"]
+        roller = lambda: random_tables.roll_table(table_id, record=False)["text"]
+    try:
+        room_keys.generate_for_map(m, seed=int(seed) if seed.strip().lstrip("-").isdigit() else None, creature_roller=roller)
+    except room_keys.RoomKeyError as e:
+        return _key_error(e)
+    return JSONResponse({"ok": True, **_key_payload(m)})
+
+
+@router.post("/api/maps/{map_id}/key/clear")
+def api_clear_key(map_id: int):
+    m = _key_map(map_id)
+    room_keys.delete_all(m["id"])
+    return JSONResponse({"ok": True, **_key_payload(m)})
+
+
+@router.post("/api/maps/{map_id}/key/{room}")
+def api_update_key_entry(map_id: int, room: int, title: str = Form(None), kind: str = Form(None),
+                         description: str = Form(None), contents: str = Form(None), treasure: str = Form(None),
+                         secrets: str = Form(None), notes: str = Form(None)):
+    m = _key_map(map_id)
+    try:
+        entry = room_keys.update_entry(m["id"], room, title=title, kind=kind, description=description,
+                                       contents=contents, treasure=treasure, secrets=secrets, notes=notes)
+    except room_keys.RoomKeyError as e:
+        return _key_error(e)
+    return JSONResponse({"ok": True, "entry": entry})
+
+
+@router.post("/api/maps/{map_id}/key/{room}/ai")
+def api_ai_key_entry(map_id: int, room: int):
+    m = _key_map(map_id)
+    try:
+        entry = room_keys.flesh_out(m, room)
+    except room_keys.RoomKeyError as e:
+        return _key_error(e)
+    return JSONResponse({"ok": True, "entry": entry})
+
+
+@router.get("/maps/{map_id}/key")
+def map_key_page(request: Request, map_id: int):
+    m = _key_map(map_id)
+    ctx = base_ctx(request)
+    ctx.update({"map": m, "game": games_module.get_game(m["game_key"]),
+                "entries": room_keys.list_entries(map_id), "kinds": room_keys.KIND_LABELS})
+    return templates.TemplateResponse(request, "map_key.html", ctx)
+
+
+# ----------------------------------------------------------------- VTT export
+
+@router.get("/api/maps/{map_id}/vtt")
+def api_vtt_export(map_id: int, ppg: int = 70):
+    m = _key_map(map_id)
+    try:
+        info = vtt_export.export_info(m, ppg)
+    except vtt_export.VttError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=e.status)
+    return JSONResponse({"ok": True, **info})
+
+
+# ---------------------------------------------------------------- linked maps
+
+def _links_error(e):
+    return JSONResponse({"ok": False, "error": str(e)}, status_code=e.status)
+
+
+@router.get("/api/maps/{map_id}/links")
+def api_get_links(map_id: int):
+    m = _key_map(map_id)
+    return JSONResponse({"ok": True, **map_links.payload(m)})
+
+
+@router.post("/api/maps/{map_id}/links/create")
+def api_create_linked_map(map_id: int, kind: str = Form("detail"), map_type: str = Form(...),
+                          title: str = Form(""), settlement: str = Form("")):
+    m = _key_map(map_id)
+    tier = "village"
+    name = settlement.strip()
+    if name:
+        known = {s["name"]: s["tier"] for s in map_links.settlements(m["svg"])}
+        if name not in known:
+            return JSONResponse({"ok": False, "error": "That place isn't on this map."}, status_code=400)
+        tier = known[name]
+    try:
+        new_id = map_links.create_linked(m, kind, map_type, title=title, settlement=name or None, tier=tier)
+    except map_links.LinkError as e:
+        return _links_error(e)
+    return JSONResponse({"ok": True, "id": new_id, "url": f"/maps/{new_id}", **map_links.payload(m)})
+
+
+@router.post("/api/maps/{map_id}/links/add")
+def api_add_link(map_id: int, other_id: int = Form(...), kind: str = Form("detail"), label: str = Form("")):
+    m = _key_map(map_id)
+    try:
+        map_links.link(m["id"], other_id, kind, label)
+    except map_links.LinkError as e:
+        return _links_error(e)
+    return JSONResponse({"ok": True, **map_links.payload(m)})
+
+
+@router.post("/api/maps/{map_id}/links/{link_id}/delete")
+def api_delete_link(map_id: int, link_id: int):
+    m = _key_map(map_id)
+    map_links.unlink(m["id"], link_id)
+    return JSONResponse({"ok": True, **map_links.payload(m)})

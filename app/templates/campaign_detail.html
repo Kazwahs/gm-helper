@@ -235,6 +235,12 @@
           <button class="secondary delete-faction-btn">Remove</button>
         </div>
         <div class="field-group" style="margin-top:0.5rem;">
+          <label class="field-label">Stands with the party</label>
+          <select data-field="standing" style="max-width:14rem;">
+            {% for st in standings %}<option value="{{ st }}" {% if f.standing == st %}selected{% endif %}>{{ st|capitalize }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="field-group" style="margin-top:0.5rem;">
           <label class="field-label">Goal</label>
           <textarea data-field="goal" rows="2">{{ f.goal or '' }}</textarea>
         </div>
@@ -256,6 +262,22 @@
     <textarea name="goal" rows="2" placeholder="What are they after? (optional)"></textarea>
     <textarea name="notes" rows="2" placeholder="Notes (optional)"></textarea>
   </form>
+</div>
+
+<!-- ------------------------------------------------------------ Ties -->
+<div class="card" id="ties-card">
+  <h3>Ties</h3>
+  <p class="muted">Who is allied with, owes, or hates whom, among your factions and cast.</p>
+  <div id="ties-body"></div>
+  <p class="muted" id="ties-msg" role="status" style="margin:0.4rem 0 0;"></p>
+</div>
+
+<!-- ---------------------------------------------------------- Clocks -->
+<div class="card" id="clocks-card">
+  <h3>Clocks</h3>
+  <p class="muted">Threats on a timer. Click a segment (or use + and &minus;) as the world moves; when the clock is full, it happens.</p>
+  <div id="clocks-body"></div>
+  <p class="muted" id="clocks-msg" role="status" style="margin:0.4rem 0 0;"></p>
 </div>
 
 <!-- -------------------------------------------------------- Locations -->
@@ -312,6 +334,17 @@
     </div>
     <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
   </form>
+</div>
+
+<!-- ------------------------------------------------- Secrets & clues -->
+<div class="card" id="secrets-card" data-campaign="{{ campaign.id }}">
+  <h3>Secrets &amp; clues</h3>
+  <p class="muted">
+    What the party could discover. Mark one <strong>Reveal</strong> when they learn it and it is noted in the session log
+    as a clue, so the recap sees it. Players never see this list.
+  </p>
+  <div id="secrets-body"></div>
+  <p class="muted" id="secrets-msg" role="status" style="margin:0.4rem 0 0;"></p>
 </div>
 
 <!-- --------------------------------------------------------- Sessions -->
@@ -410,6 +443,7 @@
 
 {% endblock %}
 {% block scripts %}
+<script src="{{ asset('campaign_world.js') }}"></script>
 <script>
 const campaignId = {{ campaign.id }};
 
@@ -443,6 +477,7 @@ function wireDelete(container, selector, urlFor, confirmMsg) {
       try {
         await postForm(urlFor(row.dataset.id), {});
         row.remove();
+        document.dispatchEvent(new CustomEvent('campaign-changed'));   // ties and clocks may have changed
       } catch (e) {
         alert('Could not remove: ' + e.message);
       }
@@ -724,6 +759,7 @@ if (logSession) {
   });
 
   logSession.addEventListener('change', loadLog);
+  document.addEventListener('campaign-log-changed', loadLog);   // e.g. a secret was revealed
 
   document.getElementById('log-summary-btn').addEventListener('click', async (e) => {
     const btn = e.currentTarget;

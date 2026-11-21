@@ -2,7 +2,8 @@
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from .. import handouts, live, map_tokens
+from .. import database, handouts, live, map_tokens, maps_store, token_combat
+from ..tools import initiative as initiative_tool
 
 router = APIRouter()
 
@@ -66,6 +67,70 @@ def api_update_token(token_id: int, field: str = Form(...), value: str = Form(""
 def api_delete_token(token_id: int):
     map_tokens.delete_token(token_id)
     return JSONResponse({"ok": True})
+
+
+# ------------------------------------------------------- tokens and combat
+def _game_key(map_id):
+    m = maps_store.get_map(map_id)
+    return m["game_key"] if m else None
+
+
+@router.get("/api/maps/{map_id}/combat")
+def api_map_combat(map_id: int):
+    """Tokens with their combat details, who can be linked, round and turn."""
+    game_key = _game_key(map_id)
+    if game_key is None:
+        return _fail("Unknown map.", 404)
+    return JSONResponse(token_combat.combat_view(map_id, game_key))
+
+
+@router.post("/api/maps/{map_id}/combat/add")
+def api_map_combat_add(map_id: int, foes_hidden: str = Form("1")):
+    result = _call(token_combat.add_from_initiative, map_id, foes_hidden.strip().lower() in ("1", "true", "on", "yes"))
+    if isinstance(result, JSONResponse):
+        return result
+    return JSONResponse({**result, **token_combat.combat_view(map_id, _game_key(map_id))})
+
+
+@router.post("/api/maps/{map_id}/combat/remove-orphans")
+def api_map_combat_orphans(map_id: int):
+    result = _call(token_combat.remove_orphans, map_id)
+    if isinstance(result, JSONResponse):
+        return result
+    return JSONResponse({"removed": result, **token_combat.combat_view(map_id, _game_key(map_id))})
+
+
+@router.post("/api/maps/{map_id}/combat/next")
+def api_map_combat_next(map_id: int):
+    game_key = _game_key(map_id)
+    if game_key is None:
+        return _fail("Unknown map.", 404)
+    initiative_tool.next_turn(game_key)
+    return JSONResponse(token_combat.combat_view(map_id, game_key))
+
+
+@router.post("/api/maps/{map_id}/combat/hit")
+def api_map_combat_hit(map_id: int, combatant_id: int = Form(...), delta: int = Form(...)):
+    game_key = _game_key(map_id)
+    if game_key is None:
+        return _fail("Unknown map.", 404)
+    initiative_tool.update_hp(game_key, combatant_id, delta)
+    return JSONResponse(token_combat.combat_view(map_id, game_key))
+
+
+@router.post("/api/map-tokens/{token_id}/link")
+def api_link_token(token_id: int, combatant_id: str = Form("")):
+    result = _call(token_combat.set_link, token_id, combatant_id)
+    if isinstance(result, JSONResponse):
+        return result
+    map_id = _owner_map(token_id)
+    return JSONResponse(token_combat.combat_view(map_id, _game_key(map_id)))
+
+
+def _owner_map(token_id):
+    with database.get_cursor() as cur:
+        r = cur.execute("SELECT map_id FROM map_tokens WHERE id = ?", (token_id,)).fetchone()
+    return r["map_id"]
 
 
 # ---------------------------------------------------------------- handouts

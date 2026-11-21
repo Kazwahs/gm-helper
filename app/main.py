@@ -3,12 +3,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from . import config, database
+from . import autobackup, config, database
 from .library import games as games_module
 from .security import BasicAuthMiddleware
 from .web import NoCacheStaticFiles
 from .routers import (
-    bookmarks, campaigns, dashboard, games, library, live, maps, ops, screen, settings, tables, tools,
+    bookmarks, campaign_world, campaigns, dashboard, games, library, live, maps, ops, screen, settings, tables, tools,
 )
 
 
@@ -16,12 +16,17 @@ from .routers import (
 async def lifespan(app):
     database.init_db()
     games_module.reload()
-    yield
+    scheduler = autobackup.Scheduler()   # automatic backups; see autobackup.py
+    scheduler.start()
+    try:
+        yield
+    finally:
+        scheduler.stop()
 
 
 app = FastAPI(title="GM Helper", lifespan=lifespan)
 app.add_middleware(BasicAuthMiddleware)  # no-op unless GM_HELPER_PASSWORD is set
 app.mount("/static", NoCacheStaticFiles(directory=os.path.join(config.APP_DIR, "static")), name="static")
 
-for module in (dashboard, settings, games, library, bookmarks, campaigns, maps, live, screen, tools, tables, ops):
+for module in (dashboard, settings, games, library, bookmarks, campaigns, campaign_world, maps, live, screen, tools, tables, ops):
     app.include_router(module.router)

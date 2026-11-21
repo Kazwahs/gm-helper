@@ -309,7 +309,8 @@ def generate(rng, genre, map_type, params):
         radius = 5 if is_city else 3.2
         el_parts = [svg.circle(cx, cy, radius, "#3a2a1a", stroke="#f4ead2", stroke_width=1.3, extra='class="map-el-fill"')]
         el_parts.append(svg.text(cx + radius + 3, cy + 3, name, size=9, fill="#241a10", weight="bold" if is_city else "normal", extra='class="map-el-label"'))
-        settlement_parts.append(svg.map_el("settlement", cx, cy, "".join(el_parts), fill="#3a2a1a"))
+        settlement_parts.append(svg.map_el("settlement", cx, cy, "".join(el_parts), fill="#3a2a1a",
+                                           attrs={"name": name, "tier": "city" if is_city else "village"}))
     body.append(svg.group("".join(settlement_parts)))
 
     poi_color = "#6a3520"

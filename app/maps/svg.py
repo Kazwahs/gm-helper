@@ -97,16 +97,18 @@ def group(body, extra=""):
 # shown in the editor's side panel; cx/cy is the element's logical center in
 # SVG user-space units (used as the drag origin); fill, when given, is the
 # element's current color so the editor can offer a color swatch.
-def map_el(kind, cx, cy, body, fill=None, locked=False):
+def map_el(kind, cx, cy, body, fill=None, locked=False, attrs=None):
     """An editable element. `locked` ones are part of the drawn map (an ink room
     or city block): the editor lets you rename and tint them but not drag or
     delete them, since they sit on top of artwork that can't move with them."""
-    attrs = f'class="map-el" data-kind="{esc(kind)}" data-cx="{cx:.1f}" data-cy="{cy:.1f}"'
+    out = f'class="map-el" data-kind="{esc(kind)}" data-cx="{cx:.1f}" data-cy="{cy:.1f}"'
     if fill:
-        attrs += f' data-fill="{esc(fill)}"'
+        out += f' data-fill="{esc(fill)}"'
     if locked:
-        attrs += ' data-locked="1"'
-    return f"<g {attrs}>{body}</g>"
+        out += ' data-locked="1"'
+    for key, value in (attrs or {}).items():
+        out += f' data-{key}="{esc(value)}"'
+    return f"<g {out}>{body}</g>"
 
 
 # Shared "goo" filter for merging overlapping circles into an organic blob

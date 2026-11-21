@@ -238,9 +238,14 @@ def generate(rng, genre, style, params):
             corridor_parts.append(svg.line(mx, my, x2, y2, pal["corridor"], corridor_w))
     body.append(svg.group("".join(corridor_parts)))
 
+    neighbours = {i: [] for i in range(len(rooms))}
+    for i, j in edges:
+        neighbours[i].append(f'{rooms[j]["number"]}:door')
+        neighbours[j].append(f'{rooms[i]["number"]}:door')
+
     room_parts = []
     object_count = 0
-    for room in rooms:
+    for room_index, room in enumerate(rooms):
         x, y, w, h = room["x"] * PX, room["y"] * PX, room["w"] * PX, room["h"] * PX
         cx, cy = x + w / 2, y + h / 2
         if room["shape"] == "circle":
@@ -267,8 +272,11 @@ def generate(rng, genre, style, params):
             label_y = cy if not room["feature"] else cy - 4
             el_parts.append(svg.text(cx, label_y, room["label"], size=9.5, fill=pal["text"], anchor="middle", weight="bold", extra='class="map-el-label"'))
             if room["feature"]:
-                el_parts.append(svg.text(cx, cy + 9, room["feature"], size=7.5, fill=pal["feature_text"], anchor="middle", style="italic", extra='class="map-el-label"'))
-        room_parts.append(svg.map_el("room", cx, cy, "".join(el_parts), fill=pal["room_fill"]))
+                el_parts.append(svg.text(cx, cy + 9, room["feature"], size=7.5, fill=pal["feature_text"], anchor="middle", style="italic", extra='class="map-el-label" data-role="feature"'))
+        facts = {"room": room["number"], "name": room["label"] or "", "feature": room["feature"] or "",
+                 "shape": room["shape"], "size": f'{round(room["w"])}x{round(room["h"])}', "stairs": "",
+                 "exits": ",".join(neighbours[room_index])}
+        room_parts.append(svg.map_el("room", cx, cy, "".join(el_parts), fill=pal["room_fill"], attrs=facts))
     body.append(svg.group("".join(room_parts)))
 
     layout_label = {"warren": "", "keep": " (planned)", "hub": " (radial)"}[layout]
