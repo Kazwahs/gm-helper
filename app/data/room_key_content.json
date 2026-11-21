@@ -1,0 +1,290 @@
+{
+  "_comment": "Banks for the room key generator (app/room_keys.py). System-neutral on purpose: creatures are described, not statted, and treasure is described, not priced, so the GM can drop in whatever their game uses. Tiers: light / moderate / tough / boss.",
+  "looks": {
+    "fantasy": [
+      "Water drips steadily from the ceiling and pools in the cracks of the floor.",
+      "Old torch brackets line the walls, most of them empty.",
+      "The air is cold and smells of damp stone.",
+      "Faded murals cover the walls, scratched out in places.",
+      "Rubble from a partial collapse is heaped against one wall.",
+      "Thick cobwebs hang from the ceiling like curtains.",
+      "The floor is worn smooth down the middle, the way a path is worn by many feet.",
+      "A low, uneven hum can be felt through the floor more than heard.",
+      "Scorch marks climb the walls and the ceiling is black with old smoke.",
+      "Dust lies undisturbed, except for one narrow set of tracks."
+    ],
+    "modern": [
+      "A bare bulb hangs from a wire, swinging slightly.",
+      "The walls are water-stained and the paint is peeling in long strips.",
+      "Graffiti covers every reachable surface.",
+      "The place smells of mildew, old smoke and something worse underneath.",
+      "Pallets and broken furniture have been shoved against the walls.",
+      "A radio somewhere is playing static, very quietly.",
+      "The floor is gritty with broken plaster and glass.",
+      "Wires dangle out of the ceiling where the lighting was stripped.",
+      "Boarded-up windows let in thin stripes of light.",
+      "Cold air flows in from a vent that should have been sealed."
+    ],
+    "hightech": [
+      "Status lights blink in a slow pattern along the wall panels.",
+      "A thin haze hangs in the air, lit from beneath by the floor strips.",
+      "The ventilation here has a faint, rhythmic knocking.",
+      "Cables snake across the deck, taped down in some places and not in others.",
+      "The lighting is dim and tinted red, as if on emergency power.",
+      "Sections of the wall panelling have been pried open and left hanging.",
+      "A low electrical whine rises and falls at irregular intervals.",
+      "Everything is spotless, which is somehow more unsettling than neglect.",
+      "Frost has formed around a leaking coolant line.",
+      "A dead display flickers briefly and shows a single line of corrupted text."
+    ]
+  },
+  "creatures": {
+    "fantasy": {
+      "light": [
+        "1d4 giant rats gnawing through old sacks",
+        "2d4 goblin scouts playing dice and not paying attention",
+        "a lone bandit deserter, hiding and jumpy",
+        "1d6 giant centipedes nesting under the debris",
+        "a swarm of bats roosting overhead"
+      ],
+      "moderate": [
+        "1d4+1 skeletons standing in rigid, silent ranks",
+        "2d4 orc raiders arguing over their loot",
+        "a pair of dire wolves guarding a pile of gnawed bones",
+        "a giant spider in the rafters and its egg sacs",
+        "1d3 cultists in the middle of a muttered ritual"
+      ],
+      "tough": [
+        "an ogre with 1d4 goblin servants",
+        "a gelatinous ooze filling the lower half of the room",
+        "a basilisk coiled around a broken pedestal",
+        "1d4 suits of animated armour, one of them a little faster",
+        "a wight and 1d4 skeletal guards"
+      ],
+      "boss": [
+        "the lair's master, a necromancer with 2d4 undead retainers",
+        "a young dragon asleep on its hoard",
+        "an orc warlord and his bodyguard",
+        "a vampire lord entertaining his thralls",
+        "a hag and the charmed captives who serve her"
+      ]
+    },
+    "modern": {
+      "light": [
+        "a couple of squatters, scared and defensive",
+        "1d4 stray dogs fighting over scraps",
+        "a lone security guard on a smoke break",
+        "2d4 giant rats in the walls",
+        "a teenage urban explorer, hopelessly lost"
+      ],
+      "moderate": [
+        "1d4+1 gang members in the middle of a deal",
+        "two armed guards watching a bank of monitors",
+        "a pack of feral dogs defending a den",
+        "1d3 cultists around a chalk circle",
+        "smugglers repackaging contraband"
+      ],
+      "tough": [
+        "a crew of 2d4 armed mercenaries",
+        "a cornered, enraged and badly mutated animal",
+        "a hit squad waiting in ambush",
+        "a transformed victim and the keepers who feed it",
+        "a paranoid ex-soldier and his rigged room"
+      ],
+      "boss": [
+        "the crime boss and his bodyguards",
+        "the cult leader and 2d4 devoted followers",
+        "a rogue scientist with her failed experiments",
+        "a corrupt officer and his private security team",
+        "the monster at the heart of the whole mystery"
+      ]
+    },
+    "hightech": {
+      "light": [
+        "1d4 cleaning drones with badly broken priorities",
+        "a damaged service bot, harmless and very chatty",
+        "2d4 feral vermin in the vents",
+        "a lone scavenger, wary and lightly armed",
+        "a glitching maintenance cyborg who is willing to cooperate"
+      ],
+      "moderate": [
+        "1d4+1 security drones on patrol",
+        "a pair of cyborg raiders",
+        "an automated turret and its repair drone",
+        "2d4 gang bruisers with cheap implants",
+        "a swarm of crawlers infested with nanites"
+      ],
+      "tough": [
+        "a light combat mech",
+        "a squad of 2d4 augmented troopers",
+        "1d4 hunter-killer units under the facility's control",
+        "an engineered predator that escaped from a lab",
+        "a heavily augmented bounty hunter"
+      ],
+      "boss": [
+        "the facility's rogue AI with its guard mechs active",
+        "a corporate black-ops team leader and squad",
+        "an augmented warlord with a veteran crew",
+        "an experimental weapons platform that has just come online",
+        "an engineered apex predator and its nest"
+      ]
+    }
+  },
+  "traps": {
+    "fantasy": [
+      "A pressure plate near the door fires darts from the walls.",
+      "A tripwire drops a portcullis behind anyone who enters, sealing the way back.",
+      "A rotted section of floor hides a spiked pit.",
+      "A blade swings across at head height when the far door is opened.",
+      "A poison needle is hidden in the lock of the nearest chest.",
+      "A warding glyph shrieks when stepped on, alerting the neighbouring rooms.",
+      "Part of the floor tilts and drops intruders into the dark below.",
+      "A lever on the wall looks helpful; pulling it fills the room with gas."
+    ],
+    "modern": [
+      "A tripwire is rigged to a shotgun at knee height.",
+      "The floor has rotted through above a basement, hidden under a rug.",
+      "The door is booby-trapped with a fire bomb.",
+      "A car battery is wired to the door handle.",
+      "A hidden sensor sets off an alarm in the next room.",
+      "A cut gas line fills the room with fumes, and a spark would be a disaster.",
+      "A broken staircase hides a drop.",
+      "A snare yanks the first person to step wrong up by the ankle."
+    ],
+    "hightech": [
+      "A laser tripwire grid covers the floor.",
+      "A mag-lock seals the room and floods it with gas.",
+      "A proximity mine is hidden under a floor panel.",
+      "The console delivers a heavy power surge to whoever touches it.",
+      "The deck plating is electrified when the door is closed.",
+      "A silent alarm calls security straight to this room.",
+      "The airlock begins to cycle open to vacuum.",
+      "A holographic decoy hides an active turret."
+    ]
+  },
+  "puzzles": {
+    "fantasy": [
+      "Four statues, each pointing at a different exit. Only one is telling the truth.",
+      "A riddle is carved above a sealed door.",
+      "A pool of still water shows visions of the room's past.",
+      "A mechanism with coloured levers has to be set in the right order.",
+      "A rope bridge, badly frayed, crosses a chasm.",
+      "A mirror traps the reflection of anyone who looks at it for too long.",
+      "The door shuts behind the party and the water starts to rise.",
+      "A magical darkness snuffs out every torch."
+    ],
+    "modern": [
+      "A combination lock. The code is on a scrap of paper somewhere else in the building.",
+      "A crowded storeroom of locked filing cabinets, only one of which matters.",
+      "A flooded room with a key somewhere on the bottom.",
+      "A safe with a keypad that has three worn digits.",
+      "A collapsed elevator shaft that has to be crossed.",
+      "Mould and fumes make the room unsafe without masks.",
+      "A security door that needs two keycards at once.",
+      "A room of mannequins that have all been moved since the last time anyone looked."
+    ],
+    "hightech": [
+      "A terminal is asking for a credential that someone must find or bypass.",
+      "Gravity plates flip as soon as someone steps in.",
+      "A locked door that needs a code-breaking attempt before security notices.",
+      "A radiation leak makes the room hazardous without shielding.",
+      "A power relay puzzle with colour-coded conduits.",
+      "A zero-gravity chamber with the exit on the far side.",
+      "A laser maze guards the console at the far end.",
+      "A voice lock responds only to a recorded phrase found elsewhere."
+    ]
+  },
+  "treasure": {
+    "fantasy": {
+      "minor": [
+        "a handful of coins and a tarnished silver ring",
+        "a belt pouch of copper and a single small gem",
+        "a dented but valuable goblet",
+        "a bundle of trade goods worth selling"
+      ],
+      "fair": [
+        "a locked strongbox of coin and a few cut gems",
+        "a jewelled dagger and a small sack of silver",
+        "a scroll or potion (GM's choice) in a sealed tube",
+        "a fine cloak with a gold clasp and a purse"
+      ],
+      "hoard": [
+        "a heap of coin and gems, with one magical item (GM's choice)",
+        "a locked chest of gold, a signed map and a minor relic",
+        "a trove of coin, jewellery and two magical items (GM's choice)"
+      ]
+    },
+    "modern": {
+      "minor": [
+        "a wallet with a little cash and a useful ID",
+        "a working phone and a few spare batteries",
+        "a first aid kit and some canned food",
+        "a bag of tools worth carrying"
+      ],
+      "fair": [
+        "a duffel of cash and a handgun",
+        "a laptop with a locked drive and a few clues on it",
+        "a case of electronics worth selling",
+        "a ring of keys and a set of documents"
+      ],
+      "hoard": [
+        "a safe holding a large amount of cash and incriminating records",
+        "a stash of weapons and ammunition with a vehicle's keys",
+        "a locked case holding the item everyone has been chasing"
+      ]
+    },
+    "hightech": {
+      "minor": [
+        "a handful of credit chips and a spare power cell",
+        "a salvageable sensor module",
+        "some medical nano-gel and a few ration packs",
+        "a bag of useful scrap components"
+      ],
+      "fair": [
+        "a lockbox of credits and an encrypted data-chip",
+        "a working cyber-implant, still in its case",
+        "a military-grade power pack and a damaged weapon",
+        "a datapad with maps of the facility"
+      ],
+      "hoard": [
+        "a vault of credits, prototype gear and a master access key",
+        "a research core with valuable data and a working experimental device",
+        "a cache of military hardware and a locked cargo crate"
+      ]
+    }
+  },
+  "empty": {
+    "fantasy": [
+      "Nothing of use here. Dust, old bones and the signs of someone else's passing.",
+      "A cold fire pit; the ash is still faintly warm.",
+      "Empty shelves, and a smell of long-spoiled food.",
+      "A collapsed bed and a few rags. Someone lived here once.",
+      "A scatter of broken pottery, and nothing else."
+    ],
+    "modern": [
+      "Empty, apart from a mattress and some takeaway boxes.",
+      "A few overturned chairs and an old calendar on the wall.",
+      "Stripped of anything worth taking, but the stripping was recent.",
+      "Boxes of paperwork, long past caring about.",
+      "Someone has drawn a map on the wall and then crossed it out."
+    ],
+    "hightech": [
+      "Empty apart from a dead console and a few torn cables.",
+      "Everything useful has been stripped out of the racks.",
+      "A locker room, all the lockers open and empty.",
+      "A storage bay with a single overturned crate.",
+      "A bare room with a clean patch on the floor where something heavy was recently moved."
+    ]
+  },
+  "door_words": {
+    "door": "a door",
+    "arch": "an open archway",
+    "swing": "a swinging door",
+    "locked": "a locked door",
+    "secret": "a secret door"
+  },
+  "stairs": {
+    "down": "A stairway leads down to another level.",
+    "up": "A stairway leads up to another level."
+  }
+}

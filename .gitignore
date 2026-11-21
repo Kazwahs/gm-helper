@@ -12,7 +12,10 @@ gm_helper.db-journal
 
 # Docker Compose local overrides - your real paths/UID/port, not for the repo
 .env
-data/
+# Runtime data folder next to docker-compose.yml. Anchored to the repo root on
+# purpose: an unanchored "data/" also matches app/data/, which holds the bundled
+# game, NPC, map and room-key JSON files the app needs at startup.
+/data/
 
 # OS cruft
 .DS_Store

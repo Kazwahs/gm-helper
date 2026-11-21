@@ -1,0 +1,80 @@
+{
+  "_comment": "Settings for the encounter builder's difficulty guide (app/encounter_guide.py). These are rough, editable defaults chosen for this app - NOT published rules from any game book. 'pressure' compares the foes' (attacks x hit points x damage) with the party's, which is Lanchester's square law for a straight fight. A band applies while pressure is at or below 'max'. Edit freely; restart the app to pick up changes.",
+  "mdc_to_sdc": 100,
+  "foe_hits": [
+    {"key": "weaker", "label": "Weaker than the party's", "factor": 0.5},
+    {"key": "similar", "label": "About the same as the party's", "factor": 1.0},
+    {"key": "harder", "label": "Harder than the party's", "factor": 2.0},
+    {"key": "much_harder", "label": "Much harder than the party's", "factor": 4.0}
+  ],
+  "default_foe_hits": "similar",
+  "bands": [
+    {"key": "easy", "label": "Easy", "max": 0.25, "text": "The party should win quickly and barely notice."},
+    {"key": "fair", "label": "Fair", "max": 0.6, "text": "A real fight the party should win, spending some resources."},
+    {"key": "hard", "label": "Hard", "max": 0.9, "text": "The party probably wins, but badly hurt; someone could go down."},
+    {"key": "deadly", "label": "Deadly", "max": 1.5, "text": "On even terms the foes win. The party needs tactics, terrain, surprise or a way out."},
+    {"key": "overwhelming", "label": "Overwhelming", "max": null, "text": "A straight fight is hopeless. Make sure the players have a way to see that coming and run."}
+  ],
+  "profiles": {
+    "rifts": {
+      "label": "Rifts",
+      "party_attacks": 4,
+      "foe_attacks": 3,
+      "mdc": true,
+      "notes": [
+        "Rifts mixes S.D.C. and M.D.C. One M.D.C. point is worth 100 S.D.C. Add mdc to a foe line, or tick M.D.C. for a party member, whenever the number is mega-damage capacity.",
+        "Ordinary S.D.C. weapons generally cannot hurt M.D.C. targets at all, and a mega-damage hit is worth 100 times as much against S.D.C. targets. This guide only converts hit points, so check what each side's weapons actually do.",
+        "Magic, psionics, vehicles, power armor and robot bonuses are not counted; they swing Rifts fights a lot."
+      ]
+    },
+    "palladium_fantasy": {
+      "label": "Palladium Fantasy",
+      "party_attacks": 3,
+      "foe_attacks": 2,
+      "mdc": false,
+      "notes": [
+        "Enter hit points (plus S.D.C. where your edition uses it) as one number.",
+        "Armor Rating, spells, psionics, and supernatural monsters are not counted. Use 'how hard the foes hit' to show a big gap in damage."
+      ]
+    },
+    "heroes_unlimited": {
+      "label": "Heroes Unlimited",
+      "party_attacks": 3,
+      "foe_attacks": 3,
+      "mdc": false,
+      "notes": [
+        "Add hit points and S.D.C. together as one number. Super-powers such as force fields, energy blasts and invulnerability are not counted.",
+        "Power levels vary enormously between heroes; use 'how hard the foes hit' to show a big gap in damage."
+      ]
+    },
+    "palladium": {
+      "label": "Palladium games",
+      "party_attacks": 3,
+      "foe_attacks": 3,
+      "mdc": true,
+      "notes": [
+        "Enter hit points (and S.D.C. where the game uses it) as one number. Games with mega-damage can mark a group mdc; one M.D.C. point is worth 100 S.D.C.",
+        "Armor, magic and psionics are not counted."
+      ]
+    },
+    "d20": {
+      "label": "D&D and d20 games",
+      "party_attacks": 1,
+      "foe_attacks": 1,
+      "mdc": false,
+      "notes": [
+        "This is not the books' encounter-building rules. For D&D and other d20 games, the official XP budget or challenge rating guidance is more accurate; use this only as a quick comparison.",
+        "Spells, saving throws, armor class and conditions are not counted."
+      ]
+    },
+    "generic": {
+      "label": "Other games",
+      "party_attacks": 1,
+      "foe_attacks": 1,
+      "mdc": false,
+      "notes": [
+        "A plain comparison of hit points and attacks per round. Armor, special abilities and magic are not counted."
+      ]
+    }
+  }
+}
