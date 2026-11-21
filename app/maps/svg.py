@@ -14,13 +14,14 @@ def svg_doc(width, height, body, extra_defs="", view_box=None, halo="#ffffffcc",
     ``ink`` marks a hand-inked map: every SVG filter on it is cosmetic (pen
     wobble, shadows, paper grain), so the print page may drop them."""
     vb = view_box or f"0 0 {width} {height}"
+    ink_attr = ' data-style="ink"' if ink else ""
     style = (
         f"<style>.map-el-label{{paint-order:stroke;stroke:{halo};"
         f"stroke-width:3px;stroke-linejoin:round;}}{extra_css}</style>"
     )
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
-        f'viewBox="{vb}" font-family="Georgia, serif"{' data-style="ink"' if ink else ""}>'
+        f'viewBox="{vb}" font-family="Georgia, serif"{ink_attr}>'
         f"<defs>{extra_defs}</defs>"
         f"{style}"
         f"{body}"
