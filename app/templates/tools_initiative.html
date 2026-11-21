@@ -37,6 +37,38 @@
   </div>
 </div>
 
+<div class="card" id="saved-card">
+  <h3>Saved encounters</h3>
+  <p class="muted">
+    Prep a fight once, then drop it on the board in one click &mdash; each foe rolls its own initiative.
+    One group per line, like <code>4x Goblin (hp 7, init 1d20+2)</code>.
+  </p>
+  <div id="saved-list" class="stack"></div>
+  <p class="muted" id="saved-empty" hidden>No saved encounters for this game yet.</p>
+  <div id="saved-msg" class="muted" role="status" style="color: var(--bad); min-height:1.2em;"></div>
+  <details id="new-encounter">
+    <summary>New encounter</summary>
+    <form id="saved-form" style="margin-top:0.6rem;">
+      <div class="field-group">
+        <label class="field-label" for="saved-name">Name</label>
+        <input type="text" id="saved-name" maxlength="80" placeholder="e.g. Goblin ambush" required style="max-width:360px;">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="saved-body">Foes</label>
+        <textarea id="saved-body" rows="4" maxlength="4000" placeholder="4x Goblin (hp 7, init 1d20+2)&#10;Goblin Boss (hp 21, notes: carries the key)"></textarea>
+        <p class="muted" style="margin:0.3rem 0 0;">
+          <code>hp</code> and <code>init</code> are optional (a plain <code>+2</code> means 1d20+2; no init rolls 1d20).
+          <code>notes:</code> goes last. Lines starting with # are ignored.
+        </p>
+      </div>
+      <div class="row">
+        <button type="submit">Save encounter</button>
+        <button type="button" id="save-board-btn" class="secondary" title="Save the foes now on the board (PCs are left out)">Save foes on the board</button>
+      </div>
+    </form>
+  </details>
+</div>
+
 <datalist id="condition-list">
   {% for c in condition_suggestions %}<option value="{{ c }}">{% endfor %}
 </datalist>
@@ -169,6 +201,105 @@ document.addEventListener('keydown', (e) => {
     act('/api/initiative/next', {});
   }
 });
+
+// ---- saved encounters ----
+const savedList = document.getElementById('saved-list');
+const savedEmpty = document.getElementById('saved-empty');
+const savedMsg = document.getElementById('saved-msg');
+const saySaved = (t) => { savedMsg.textContent = t || ''; };
+
+function syncSavedEmpty() { savedEmpty.hidden = savedList.children.length > 0; }
+
+function renderEncounter(enc) {
+  const card = el('div', {class: 'subcard', 'data-id': String(enc.id)});
+  const name = el('input', {type: 'text', maxlength: '80', 'aria-label': 'Encounter name', style: 'flex:1; min-width:180px; font-weight:bold;'});
+  name.value = enc.name;
+  const count = el('span', {class: 'muted'}, `${enc.foes} foe${enc.foes === 1 ? '' : 's'}`);
+  const load = el('button', {type: 'button'}, 'Load into tracker');
+  const del = el('button', {type: 'button', class: 'secondary'}, 'Delete');
+  const body = el('textarea', {rows: '3', maxlength: '4000', 'aria-label': 'Foes in this encounter', style: 'margin-top:0.5rem;'});
+  body.value = enc.body;
+
+  const save = async (field, value) => {
+    try {
+      const res = await postForm(`/api/initiative/encounters/${enc.id}/update`, {field, value});
+      count.textContent = `${res.encounter.foes} foe${res.encounter.foes === 1 ? '' : 's'}`;
+      saySaved('');
+    } catch (err) { sayCard(err.message); }
+  };
+  const sayCard = (t) => { sayInline.textContent = t || ''; sayInline.style.display = t ? 'block' : 'none'; };
+  const sayInline = el('div', {class: 'error-text', role: 'alert', style: 'display:none;'});
+
+  name.addEventListener('change', () => save('name', name.value));
+  let timer = null;
+  body.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => save('body', body.value), 700); });
+  body.addEventListener('change', () => { clearTimeout(timer); save('body', body.value); });
+
+  load.addEventListener('click', async () => {
+    clearTimeout(timer);
+    try {
+      await save('body', body.value);
+      if (sayInline.textContent) return;          // fix the text first
+      const res = await postForm(`/api/initiative/encounters/${enc.id}/load`, {game: gameKey});
+      errorBox.textContent = '';
+      renderState(res.state);
+      sayCard('');
+      load.textContent = `Added ${res.added} \u2713`;
+      setTimeout(() => { load.textContent = 'Load into tracker'; }, 2500);
+    } catch (err) { sayCard(err.message); }
+  });
+  del.addEventListener('click', async () => {
+    if (!confirm(`Delete the saved encounter "${name.value}"?`)) return;
+    try {
+      await postForm(`/api/initiative/encounters/${enc.id}/delete`, {});
+      card.remove();
+      syncSavedEmpty();
+    } catch (err) { sayCard(err.message); }
+  });
+
+  card.append(el('div', {class: 'row', style: 'justify-content: space-between;'}, [name, count, load, del]), body, sayInline);
+  return card;
+}
+
+async function loadSaved() {
+  try {
+    const res = await fetch(`/api/initiative/encounters?game=${encodeURIComponent(gameKey)}`);
+    const data = await res.json();
+    savedList.replaceChildren(...data.encounters.map(renderEncounter));
+  } catch (err) { saySaved('Could not load saved encounters.'); }
+  syncSavedEmpty();
+}
+
+async function createEncounter(data) {
+  try {
+    const res = await postForm('/api/initiative/encounters', Object.assign({game: gameKey}, data));
+    savedList.appendChild(renderEncounter(res.encounter));
+    syncSavedEmpty();
+    saySaved('');
+    return true;
+  } catch (err) { saySaved(err.message); return false; }
+}
+
+document.getElementById('saved-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const ok = await createEncounter({name: document.getElementById('saved-name').value, body: document.getElementById('saved-body').value});
+  if (ok) {
+    document.getElementById('saved-name').value = '';
+    document.getElementById('saved-body').value = '';
+    document.getElementById('new-encounter').open = false;
+  }
+});
+
+document.getElementById('save-board-btn').addEventListener('click', async () => {
+  const nameBox = document.getElementById('saved-name');
+  if (!nameBox.value.trim()) { saySaved('Type a name for the encounter first.'); nameBox.focus(); return; }
+  if (await createEncounter({name: nameBox.value, from_board: 1})) {
+    nameBox.value = '';
+    document.getElementById('new-encounter').open = false;
+  }
+});
+
+loadSaved();
 
 refresh();
 </script>

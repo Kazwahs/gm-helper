@@ -7,7 +7,7 @@ both are gated behind llm.is_enabled() like every other AI feature.
 """
 import re
 
-from . import campaigns, llm
+from . import campaigns, llm, session_log
 
 RECAP_SESSIONS = 5
 SUMMARY_CHARS = 1500
@@ -30,12 +30,24 @@ def _clip(text, limit):
 
 
 def played_summaries(campaign_id, limit=RECAP_SESSIONS):
-    """The most recent played sessions that have a summary, oldest first."""
-    played = [
-        s for s in campaigns.list_sessions(campaign_id)  # newest first
-        if s["status"] == "played" and (s["summary"] or "").strip()
-    ]
-    return list(reversed(played[:limit]))
+    """The most recent sessions with something to recap, oldest first: played
+    sessions that have a written summary, plus any session with no summary
+    yet whose live log has lines in it (the log text stands in for the summary,
+    so jotting notes during play is enough for a recap)."""
+    logged = session_log.counts_by_session(campaign_id)
+    picked = []
+    for s in campaigns.list_sessions(campaign_id):  # newest first
+        summary = (s["summary"] or "").strip()
+        if summary:
+            if s["status"] == "played":
+                picked.append(s)
+        elif logged.get(s["id"]):
+            text = session_log.session_log_text(s["id"])
+            if text:
+                picked.append({**s, "summary": text, "from_log": True})
+        if len(picked) >= limit:
+            break
+    return list(reversed(picked))
 
 
 def _campaign_context(detail):
@@ -70,8 +82,8 @@ def generate_recap(campaign_id):
     sessions = played_summaries(campaign_id)
     if not sessions:
         raise CampaignAIError(
-            "There are no played sessions with a 'What actually happened' summary yet - "
-            "mark a session as Played and write a few lines about it first."
+            "There are no played sessions with a 'What actually happened' summary or session log yet - "
+            "mark a session as Played and write a few lines about it first, or log a few lines as you play."
         )
     system_prompt, user_prompt = build_recap_prompts(detail, sessions)
     try:

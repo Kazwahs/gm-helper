@@ -10,6 +10,15 @@ async function postForm(url, data) {
   return json;
 }
 
+// Sends one line to the session log of the game's most recently active campaign
+// (the session being played). Resolves with a short confirmation like
+// "Logged to Shadows over Chi-Town, session 3".
+async function logToSession(text, kind = "note") {
+  const res = await postForm("/api/log", { game: document.body.dataset.game || "", text, kind });
+  return "Logged to " + res.campaign_title + (res.session_number ? ", session " + res.session_number : "");
+}
+
+
 function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
@@ -173,4 +182,190 @@ function applyFog(svg, state, opacity = 1) {
     "class": "fog-el", x: vb.x, y: vb.y, width: vb.width, height: vb.height,
     fill: "#0b0b10", opacity, mask: "url(#fog-mask)", "pointer-events": "none",
   }));
+}
+
+
+// Quick jump (Ctrl+K / Cmd+K, or the "Jump to..." button): type a few letters of
+// a campaign, NPC, map, table, bookmark or tool and press Enter. Results come
+// from /api/jump; everything is built with textContent so a name can't inject markup.
+document.addEventListener("DOMContentLoaded", () => {
+  const overlay = document.getElementById("jump-overlay");
+  const input = document.getElementById("jump-input");
+  const list = document.getElementById("jump-results");
+  const button = document.getElementById("jump-btn");
+  if (!overlay || !input || !list) return;
+
+  let items = [];       // current results
+  let active = -1;      // highlighted row
+  let seq = 0;          // ignore answers that arrive after a newer request
+  let timer = null;
+  let returnFocus = null;
+
+  const isOpen = () => !overlay.hidden;
+
+  const setActive = (index, scroll = true) => {
+    const rows = list.querySelectorAll("li[role=option]");
+    if (!rows.length) { active = -1; input.removeAttribute("aria-activedescendant"); return; }
+    active = (index + rows.length) % rows.length;
+    rows.forEach((row, i) => {
+      const on = i === active;
+      row.classList.toggle("active", on);
+      row.setAttribute("aria-selected", on ? "true" : "false");
+      if (on) {
+        input.setAttribute("aria-activedescendant", row.id);
+        if (scroll) row.scrollIntoView({ block: "nearest" });
+      }
+    });
+  };
+
+  const render = (results, message) => {
+    items = results || [];
+    list.replaceChildren();
+    if (message || !items.length) {
+      list.appendChild(el("li", { class: "jump-empty muted" }, message || "No matches."));
+      active = -1;
+      input.removeAttribute("aria-activedescendant");
+      return;
+    }
+    items.forEach((item, i) => {
+      const link = el("a", { href: item.href, tabindex: "-1" }, [
+        el("span", { class: "jump-label" }, item.label),
+        item.detail ? el("span", { class: "jump-detail muted" }, item.detail) : null,
+        el("span", { class: "jump-kind kind-" + item.kind }, item.kind_label),
+      ]);
+      const row = el("li", { role: "option", id: "jump-opt-" + i, "aria-selected": "false" }, [link]);
+      row.addEventListener("mousemove", () => { if (active !== i) setActive(i, false); });
+      row.addEventListener("click", () => close(false));
+      list.appendChild(row);
+    });
+    setActive(0);
+  };
+
+  const search = async () => {
+    const mine = ++seq;
+    const params = new URLSearchParams({ q: input.value });
+    if (document.body.dataset.game) params.set("game", document.body.dataset.game);
+    try {
+      const res = await fetch("/api/jump?" + params.toString());
+      if (!res.ok) throw new Error("bad status");
+      const data = await res.json();
+      if (mine === seq) render(data.results);
+    } catch (err) {
+      if (mine === seq) render([], "Search isn't available right now.");
+    }
+  };
+
+  const open = () => {
+    if (isOpen()) return;
+    returnFocus = document.activeElement;
+    overlay.hidden = false;
+    document.body.classList.add("jump-open");
+    if (button) button.setAttribute("aria-expanded", "true");
+    input.value = "";
+    render([], "Loading...");
+    input.focus();
+    search();
+  };
+
+  function close(restore = true) {
+    if (!isOpen()) return;
+    overlay.hidden = true;
+    document.body.classList.remove("jump-open");
+    if (button) button.setAttribute("aria-expanded", "false");
+    clearTimeout(timer);
+    seq++;
+    if (restore && returnFocus && returnFocus.focus) returnFocus.focus();
+  }
+
+  const go = (index) => {
+    const item = items[index];
+    if (!item) return;
+    close(false);
+    window.location.href = item.href;
+  };
+
+  if (button) button.addEventListener("click", open);
+
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(search, 120);
+  });
+
+  overlay.addEventListener("mousedown", (e) => { if (e.target === overlay) close(); });
+
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      isOpen() ? close() : open();
+      return;
+    }
+    if (!isOpen()) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === "Enter") { e.preventDefault(); if (active >= 0) go(active); }
+    else if (e.key === "Tab") { e.preventDefault(); input.focus(); }  // focus stays in the box
+  }, true);
+});
+
+
+// Tokens on a map, shared by the GM's map page and the player view. Draws one
+// marker per token in a layer of class "token-el" (the editor strips those before
+// saving or exporting, like the fog). The layer goes just under the fog, so a token
+// standing in an area the players haven't seen yet stays hidden from them.
+// tokens: [{id, label, x, y, color, size, hidden?}]; radius is one token's radius
+// in the map's own units; a token's size (1-4) scales it up for big creatures.
+function drawTokens(svg, tokens, radius, showLabels = true) {
+  const NS = "http://www.w3.org/2000/svg";
+  svg.querySelectorAll(".token-layer").forEach((n) => n.remove());
+  if (!tokens || !tokens.length) return;
+  const make = (tag, attrs) => {
+    const node = document.createElementNS(NS, tag);
+    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+    return node;
+  };
+  const initials = (label) => {
+    const words = String(label).trim().split(/\s+/).filter(Boolean);
+    const text = words.length > 1 ? words[0][0] + words[1][0] : (words[0] || "?").slice(0, 2);
+    return text.toUpperCase();
+  };
+  const ink = (hex) => {      // black or white, whichever reads better on the token colour
+    const n = parseInt(String(hex).slice(1), 16) || 0;
+    const lum = 0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+    return lum > 150 ? "#111" : "#fff";
+  };
+  const layer = make("g", {"class": "token-el token-layer"});
+  tokens.forEach((t) => {
+    const r = radius * (1 + ((t.size || 1) - 1) * 0.6);
+    const g = make("g", {
+      "class": "token-el token" + (t.hidden ? " token-hidden" : ""),
+      transform: `translate(${t.x},${t.y})`, "data-id": String(t.id),
+    });
+    const title = make("title", {});
+    title.textContent = t.label + (t.hidden ? " (hidden from players)" : "");
+    g.appendChild(title);
+    g.appendChild(make("circle", {
+      r, fill: t.color, stroke: t.hidden ? "#ffcf5c" : "#fff", "stroke-width": (r * 0.14).toFixed(2),
+      "stroke-dasharray": t.hidden ? `${(r * 0.35).toFixed(2)} ${(r * 0.25).toFixed(2)}` : "none",
+      opacity: t.hidden ? 0.6 : 1,
+    }));
+    const initialsEl = make("text", {
+      "text-anchor": "middle", "dominant-baseline": "central", "font-size": (r * 0.95).toFixed(2),
+      "font-family": "sans-serif", "font-weight": "bold", fill: ink(t.color), "pointer-events": "none",
+    });
+    initialsEl.textContent = initials(t.label);
+    g.appendChild(initialsEl);
+    if (showLabels) {
+      const labelEl = make("text", {
+        y: (r * 1.75).toFixed(2), "text-anchor": "middle", "font-size": (r * 0.75).toFixed(2),
+        "font-family": "sans-serif", fill: "#fff", stroke: "#000", "stroke-width": (r * 0.2).toFixed(2),
+        "paint-order": "stroke", "pointer-events": "none",
+      });
+      labelEl.textContent = t.label;
+      g.appendChild(labelEl);
+    }
+    layer.appendChild(g);
+  });
+  const fog = svg.querySelector(".fog-el");
+  svg.insertBefore(layer, fog || null);   // the fog stays on top
 }

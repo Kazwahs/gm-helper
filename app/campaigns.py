@@ -87,7 +87,7 @@ def list_campaigns(game_key=None):
     if game_key:
         sql += " WHERE game_key = ?"
         params.append(game_key)
-    sql += " ORDER BY updated_at DESC, created_at DESC"
+    sql += " ORDER BY updated_at DESC, created_at DESC, id DESC"
     with database.get_cursor() as cur:
         rows = cur.execute(sql, params).fetchall()
     return [dict(r) for r in rows]

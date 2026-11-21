@@ -21,6 +21,63 @@
   </div>
 {% endif %}
 
+{% if activity.any %}
+<section id="pick-up" aria-labelledby="pick-up-h">
+  <h2 id="pick-up-h" class="section-head">Pick up where you left off</h2>
+  <div class="pick-up-grid">
+    {% if activity.campaigns %}
+    <div class="card pick-up-col">
+      <h3>Campaigns</h3>
+      <ul class="pick-up-list">
+        {% for c in activity.campaigns %}
+        <li>
+          <a href="/campaigns/{{ c.id }}"><strong>{{ c.title }}</strong></a>
+          <span class="muted"> &middot; {{ c.game_name }} &middot; {{ c.status }}</span>
+          {% if c.next_session %}
+            <div class="pick-up-next">
+              Next: session {{ c.next_session.number }}{% if c.next_session.title %} &ndash; {{ c.next_session.title }}{% endif %}
+              <span class="prep-dots" title="Prep: strong start / scenes / secrets &amp; clues">
+                <span class="{{ 'on' if c.next_session.prepped.strong_start }}">start</span>
+                <span class="{{ 'on' if c.next_session.prepped.scenes }}">scenes</span>
+                <span class="{{ 'on' if c.next_session.prepped.secrets_clues }}">secrets</span>
+              </span>
+              {% if c.next_session.strong_start %}<div class="muted">{{ c.next_session.strong_start }}</div>{% endif %}
+            </div>
+          {% elif c.sessions_played %}
+            <div class="pick-up-next muted">{{ c.sessions_played }} session{{ 's' if c.sessions_played != 1 else '' }} played &ndash; nothing planned next yet.</div>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if activity.maps %}
+    <div class="card pick-up-col">
+      <h3>Maps</h3>
+      <ul class="pick-up-list">
+        {% for m in activity.maps %}
+        <li><a href="/maps/{{ m.id }}">{{ m.title }}</a> <span class="muted">&middot; {{ m.map_type }} &middot; {{ m.game_name }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if activity.bookmarks %}
+    <div class="card pick-up-col">
+      <h3>Bookmarks</h3>
+      <ul class="pick-up-list">
+        {% for b in activity.bookmarks %}
+        <li>
+          <a href="/books/{{ b.book_id }}/file{% if b.page_number %}#page={{ b.page_number }}{% endif %}" target="_blank" rel="noopener">{{ b.book_title }}{% if b.page_number %} p.{{ b.page_number }}{% endif %}</a>
+          {% if b.note %}<div class="muted">{{ b.note }}</div>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 <div class="toolbar">
   <a href="/maps">Maps - generate dungeons, cities, caves &amp; wilderness</a>
   <a href="/tools/dice">Dice Roller</a>

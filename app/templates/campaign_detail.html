@@ -106,7 +106,7 @@
   <p class="muted">Open story threads with real stakes - track them until they resolve (or get dropped).</p>
   <div id="threads-list" class="stack">
     {% for t in threads %}
-      <div class="subcard" data-id="{{ t.id }}">
+      <div class="subcard" id="thread-{{ t.id }}" data-id="{{ t.id }}">
         <div class="row" style="justify-content: space-between;">
           <input type="text" data-field="title" value="{{ t.title }}" style="flex:1; min-width:200px; font-weight:bold;">
           <select data-field="status">
@@ -149,7 +149,7 @@
   <p class="muted">NPCs with wants and secrets - a name alone is just set dressing.</p>
   <div id="npcs-list" class="stack">
     {% for n in npcs %}
-      <div class="subcard" data-id="{{ n.id }}">
+      <div class="subcard" id="npc-{{ n.id }}" data-id="{{ n.id }}">
         <div class="row" style="justify-content: space-between;">
           <input type="text" data-field="name" value="{{ n.name }}" style="flex:1; min-width:160px; font-weight:bold;">
           <input type="text" data-field="role" value="{{ n.role or '' }}" placeholder="Role" style="min-width:160px;">
@@ -229,7 +229,7 @@
   <p class="muted">The powers with their own goals, still pursuing them while the party's elsewhere.</p>
   <div id="factions-list" class="stack">
     {% for f in factions %}
-      <div class="subcard" data-id="{{ f.id }}">
+      <div class="subcard" id="faction-{{ f.id }}" data-id="{{ f.id }}">
         <div class="row" style="justify-content: space-between;">
           <input type="text" data-field="name" value="{{ f.name }}" style="flex:1; min-width:200px; font-weight:bold;">
           <button class="secondary delete-faction-btn">Remove</button>
@@ -264,7 +264,7 @@
   <p class="muted">The map - nested under each other, so you can always answer "where is this" by looking one level up.</p>
   <div id="locations-list" class="stack">
     {% for l in locations %}
-      <div class="subcard" data-id="{{ l.id }}" style="margin-left: {{ l.depth * 1.5 }}rem;">
+      <div class="subcard" id="location-{{ l.id }}" data-id="{{ l.id }}" style="margin-left: {{ l.depth * 1.5 }}rem;">
         <div class="row" style="justify-content: space-between;">
           <input type="text" data-field="name" value="{{ l.name }}" style="flex:1; min-width:200px; font-weight:bold;">
           <select data-field="parent_id">
@@ -315,6 +315,41 @@
 </div>
 
 <!-- --------------------------------------------------------- Sessions -->
+<!-- ------------------------------------------------------- Session log -->
+<div class="card" id="session-log-card">
+  <h3>Session log</h3>
+  <p class="muted">
+    Jot a line as things happen. The recap can use it, and one click turns it into the
+    session's &ldquo;What actually happened&rdquo; summary afterward.
+  </p>
+  {% if sessions %}
+    <div class="row" style="margin-bottom:0.6rem;">
+      <label class="field-label" for="log-session" style="margin:0;">Session</label>
+      <select id="log-session" aria-label="Session to log into">
+        {% for s in sessions %}
+          <option value="{{ s.id }}"{% if s.id == log_default_session %} selected{% endif %}>Session {{ s.session_number }}{% if s.title %}: {{ s.title }}{% endif %}{% if log_counts.get(s.id) %} ({{ log_counts[s.id] }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <form id="log-form" class="row" autocomplete="off">
+      <select id="log-kind" aria-label="Type of entry">
+        {% for key, label in log_kinds.items() %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+      </select>
+      <input type="text" id="log-text" maxlength="1000" placeholder="What just happened? (Enter to add)" style="flex:1; min-width:220px;" aria-label="Log entry">
+      <button type="submit">Add</button>
+    </form>
+    <p class="muted" id="log-msg" role="status" style="margin:0.4rem 0 0;"></p>
+    <ul id="log-list" class="log-list" aria-label="Log entries"></ul>
+    <div class="row" style="margin-top:0.6rem;">
+      <button type="button" id="log-summary-btn" class="secondary">{% if ai_enabled %}&#10024; {% endif %}Write the summary from this log</button>
+    </div>
+    <div id="log-summary-out" class="boxed-text" style="display:none; margin-top:0.6rem;"></div>
+    <div id="log-summary-actions" class="row" style="display:none; margin-top:0.5rem;"></div>
+  {% else %}
+    <p class="muted">Add a session below to start logging.</p>
+  {% endif %}
+</div>
+
 <div class="card">
   <h3>Sessions</h3>
   <p class="muted">
@@ -331,7 +366,7 @@
   {% endif %}
   <div id="sessions-list" class="stack">
     {% for s in sessions %}
-      <div class="subcard" data-id="{{ s.id }}">
+      <div class="subcard" id="session-{{ s.id }}" data-id="{{ s.id }}">
         <div class="row" style="justify-content: space-between;">
           <strong>Session {{ s.session_number }}</strong>
           <input type="text" data-field="title" value="{{ s.title or '' }}" placeholder="Title (optional)" style="flex:1; min-width:160px;">
@@ -597,6 +632,127 @@ if (prepBtn) {
     aiActions.replaceChildren(select, apply);
     aiActions.style.display = 'flex';
   }));
+}
+
+// Arriving from quick jump (or a link) at #session-N opens that session's details,
+// and every #npc-/#thread-/... target scrolls into view.
+function openHashTarget() {
+  const target = location.hash ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null;
+  if (!target) return;
+  const details = target.querySelector('.session-details');
+  if (details) details.hidden = false;
+  target.scrollIntoView({block: 'start'});
+}
+window.addEventListener('hashchange', openHashTarget);
+openHashTarget();
+
+
+// ---- session log ----
+const logSession = document.getElementById('log-session');
+if (logSession) {
+  const logList = document.getElementById('log-list');
+  const logText = document.getElementById('log-text');
+  const logMsg = document.getElementById('log-msg');
+  const summaryOut = document.getElementById('log-summary-out');
+  const summaryActions = document.getElementById('log-summary-actions');
+  const logKinds = {{ log_kinds|tojson }};
+
+  const stamp = (s) => (s || '').slice(11, 16);   // "2026-11-20 19:42:10" -> "19:42"
+
+  function renderEntry(entry) {
+    const li = el('li', {'data-id': String(entry.id), class: 'log-entry kind-' + entry.kind});
+    const kind = el('select', {'aria-label': 'Type'}, Object.entries(logKinds).map(([k, label]) => {
+      const o = el('option', {value: k}, label); if (k === entry.kind) o.selected = true; return o;
+    }));
+    const text = el('input', {type: 'text', maxlength: '1000', 'aria-label': 'Entry text'});
+    text.value = entry.text;
+    const del = el('button', {type: 'button', class: 'secondary', 'aria-label': 'Remove entry'}, '\u2715');
+    const save = async (field, value) => {
+      try {
+        const res = await postForm(`/api/campaigns/log/${entry.id}/update`, {field, value});
+        if (field === 'text') text.value = res.entry.text;
+        logMsg.textContent = '';
+      } catch (e) { logMsg.textContent = 'Could not save: ' + e.message; }
+    };
+    text.addEventListener('change', () => save('text', text.value));
+    kind.addEventListener('change', () => { li.className = 'log-entry kind-' + kind.value; save('kind', kind.value); });
+    del.addEventListener('click', async () => {
+      try { await postForm(`/api/campaigns/log/${entry.id}/delete`, {}); li.remove(); bumpCount(-1); }
+      catch (e) { logMsg.textContent = 'Could not remove: ' + e.message; }
+    });
+    li.append(el('span', {class: 'log-time muted'}, stamp(entry.created_at)), kind, text, del);
+    return li;
+  }
+
+  function bumpCount(delta) {
+    const opt = logSession.selectedOptions[0];
+    if (!opt) return;
+    const m = opt.textContent.match(/^(.*?)(?: \((\d+)\))?$/);
+    const n = Math.max(0, (m[2] ? Number(m[2]) : 0) + delta);
+    opt.textContent = m[1] + (n ? ` (${n})` : '');
+  }
+
+  async function loadLog() {
+    summaryOut.style.display = 'none';
+    summaryActions.style.display = 'none';
+    try {
+      const res = await fetch(`/api/campaigns/${campaignId}/log?session_id=${encodeURIComponent(logSession.value)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      logList.replaceChildren(...data.entries.map(renderEntry));
+      if (!data.entries.length) logList.appendChild(el('li', {class: 'muted log-empty'}, 'Nothing logged for this session yet.'));
+    } catch (e) { logMsg.textContent = 'Could not load the log: ' + e.message; }
+  }
+
+  document.getElementById('log-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = logText.value.trim();
+    if (!text) return;
+    try {
+      const res = await postForm(`/api/campaigns/${campaignId}/log`, {
+        text, kind: document.getElementById('log-kind').value, session_id: logSession.value,
+      });
+      const empty = logList.querySelector('.log-empty');
+      if (empty) empty.remove();
+      logList.appendChild(renderEntry(res.entry));
+      logList.lastElementChild.scrollIntoView({block: 'nearest'});
+      bumpCount(1);
+      logText.value = '';
+      logMsg.textContent = '';
+      logText.focus();
+    } catch (err) { logMsg.textContent = 'Could not add: ' + err.message; }
+  });
+
+  logSession.addEventListener('change', loadLog);
+
+  document.getElementById('log-summary-btn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const res = await postForm(`/api/campaigns/sessions/${logSession.value}/log/summary`, {});
+      summaryOut.replaceChildren(renderMarkdown(res.summary));
+      summaryOut.style.display = 'block';
+      const apply = el('button', {type: 'button', class: 'secondary'}, 'Add to this session\u2019s summary');
+      apply.addEventListener('click', () => {
+        const card = document.querySelector(`#sessions-list > [data-id="${logSession.value}"]`);
+        const field = card && card.querySelector('[data-field="summary"]');
+        if (!field) return;
+        field.value = field.value.trim() ? field.value.trim() + '\n\n' + res.summary : res.summary;
+        field.dispatchEvent(new Event('input', {bubbles: true}));   // saves like any edit
+        card.querySelector('.session-details').hidden = false;
+        apply.textContent = 'Added \u2713';
+        apply.disabled = true;
+      });
+      summaryActions.replaceChildren(apply, el('span', {class: 'muted'}, res.ai ? 'Written by the AI from your log - check it before you rely on it.' : 'Plain list from your log.'));
+      summaryActions.style.display = 'flex';
+    } catch (err) {
+      summaryOut.textContent = err.message;
+      summaryOut.style.display = 'block';
+      summaryActions.style.display = 'none';
+    } finally { btn.disabled = false; }
+  });
+
+  loadLog();
 }
 
 document.getElementById('add-session-btn').addEventListener('click', async () => {

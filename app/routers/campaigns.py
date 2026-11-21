@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from .. import bookmarks as bookmarks_module
 from .. import campaign_ai, campaign_export
 from .. import campaigns as campaigns_module
-from .. import database, maps_store
+from .. import database, maps_store, session_log
 from ..library import games as games_module
 from ..web import base_ctx, templates
 
@@ -51,6 +51,9 @@ def campaign_detail_page(request: Request, campaign_id: int):
         "game": games_module.get_game(game_key),
         "game_key": game_key,
         "books": campaigns_module.books_for_game(game_key),
+        "log_default_session": (session_log.default_session(campaign_id) or {}).get("id"),
+        "log_counts": session_log.counts_by_session(campaign_id),
+        "log_kinds": session_log.KIND_LABELS,
         "attached_maps": maps_store.list_maps(campaign_id=campaign_id),
         # maps a location can link to: this campaign's, plus unattached ones for the game
         "linkable_maps": [m for m in maps_store.list_maps(game_key=game_key)
@@ -245,3 +248,76 @@ def api_add_material(campaign_id: int, book_id: int = Form(...), page_number: in
 def api_delete_material(bookmark_id: int):
     bookmarks_module.delete_bookmark(bookmark_id)
     return JSONResponse({"ok": True})
+
+
+# ------------------------------------------------------------- session log
+def _log_json(entry):
+    return {"id": entry["id"], "session_id": entry["session_id"], "kind": entry["kind"],
+            "text": entry["text"], "created_at": entry["created_at"]}
+
+
+@router.get("/api/campaigns/{campaign_id}/log")
+def api_list_log(campaign_id: int, session_id: str = ""):
+    if not campaigns_module.get_campaign(campaign_id):
+        return JSONResponse({"error": "Unknown campaign."}, status_code=404)
+    try:
+        entries = session_log.list_entries(campaign_id, session_id or None)
+    except ValueError:
+        return JSONResponse({"error": "Unknown session."}, status_code=400)
+    return JSONResponse({"entries": [_log_json(e) for e in entries]})
+
+
+@router.post("/api/campaigns/{campaign_id}/log")
+def api_add_log(campaign_id: int, text: str = Form(""), kind: str = Form("note"), session_id: str = Form("")):
+    try:
+        entry_id = session_log.add_entry(campaign_id, text, session_id or None, kind)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"entry": _log_json(session_log.get_entry(entry_id))})
+
+
+@router.post("/api/campaigns/log/{entry_id}/update")
+def api_update_log(entry_id: int, field: str = Form(...), value: str = Form("")):
+    if not session_log.get_entry(entry_id):
+        return JSONResponse({"error": "Unknown log entry."}, status_code=404)
+    try:
+        session_log.update_entry(entry_id, field, value)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"ok": True, "entry": _log_json(session_log.get_entry(entry_id))})
+
+
+@router.post("/api/campaigns/log/{entry_id}/delete")
+def api_delete_log(entry_id: int):
+    session_log.delete_entry(entry_id)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/campaigns/sessions/{session_id}/log/summary")
+def api_log_summary(session_id: int, plain: int = Form(0)):
+    """The session's log as a summary: prose when AI is on, else the bullet list."""
+    try:
+        return JSONResponse(session_log.summarize(session_id, use_ai=not plain))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.post("/api/log")
+def api_quick_log(game: str = Form(""), text: str = Form(""), kind: str = Form("note")):
+    """Log a line from a tool page (dice, tables...), which only knows the
+    game: it lands in that game's most recently active campaign, in the
+    session being played."""
+    target = session_log.log_target(game) if game else None
+    if not target:
+        return JSONResponse(
+            {"error": "There's no active campaign for this game to log to - create one under Campaigns first."},
+            status_code=400)
+    campaign, session = target
+    try:
+        entry_id = session_log.add_entry(campaign["id"], text, session["id"] if session else None, kind)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({
+        "ok": True, "entry_id": entry_id, "campaign_id": campaign["id"], "campaign_title": campaign["title"],
+        "session_number": session["session_number"] if session else None,
+    })

@@ -8,7 +8,7 @@ from .. import bookmarks as bookmarks_module
 from .. import database
 from ..library import games as games_module
 from ..library import ask as ask_module
-from ..library import scanner, search as search_module
+from ..library import scanner, search as search_module, statblock as statblock_module
 from ..web import base_ctx, library_root, templates
 
 router = APIRouter()
@@ -63,6 +63,17 @@ def api_library_ask(question: str = Form(...), game: str = Form("")):
                                            game_name=game_obj["name"] if game_obj else None))
     except ask_module.AskError as e:
         return JSONResponse({"error": str(e)}, status_code=e.status)
+
+
+@router.post("/api/library/statblock")
+def api_library_statblock(book_id: int = Form(...), page_number: int = Form(...), game: str = Form("")):
+    """Creatures found on one book page, ready to review and add to the tracker."""
+    game_obj = games_module.get_game(game) if game else None
+    try:
+        return JSONResponse(statblock_module.extract(
+            book_id, page_number, game_name=game_obj["name"] if game_obj else None))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=404)
 
 
 @router.post("/api/books/move")

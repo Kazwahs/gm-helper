@@ -23,7 +23,7 @@
 
 <div id="tables-list" class="stack">
   {% for t in tables %}
-    <div class="card table-card" data-id="{{ t.id }}">
+    <div class="card table-card" id="table-{{ t.id }}" data-id="{{ t.id }}">
       <div class="row">
         <input type="text" data-field="name" value="{{ t.name }}" style="flex:1; min-width:200px; font-weight:bold;">
         <input type="text" data-field="die" value="{{ t.die }}" placeholder="die" title="Leave blank for plain lists" style="width:6rem;">
@@ -41,6 +41,7 @@
       <div class="roll-out" hidden>
         <div class="result-box"></div>
         <button type="button" class="secondary send-notes-btn">Send to session notes</button>
+        {% if game_key %}<button type="button" class="secondary log-btn">Add to session log</button>{% endif %}
       </div>
     </div>
   {% else %}
@@ -103,8 +104,8 @@ function wireCard(card) {
       try {
         const t = await postForm(`/api/tables/${id}/update`, {field: field.dataset.field, value: field.value});
         info.replaceChildren(document.createTextNode(
-          `${t.entry_count} entr${t.entry_count === 1 ? 'y' : 'ies'} \\u00b7 rolls ${t.effective_die || '-'}`));
-        t.warnings.forEach((w) => { info.appendChild(el('br')); info.appendChild(document.createTextNode('\\u26A0 ' + w)); });
+          `${t.entry_count} entr${t.entry_count === 1 ? 'y' : 'ies'} \u00b7 rolls ${t.effective_die || '-'}`));
+        t.warnings.forEach((w) => { info.appendChild(el('br')); info.appendChild(document.createTextNode('\u26A0 ' + w)); });
       } catch (err) {
         info.replaceChildren(el('span', {class: 'error-text'}, err.message));
       }
@@ -117,8 +118,8 @@ function wireCard(card) {
     const box = out.querySelector('.result-box');
     try {
       const res = await postForm(`/api/tables/${id}/roll`, {});
-      box.replaceChildren(el('strong', {}, `${res.die} \\u2192 ${res.roll}: `), document.createTextNode(res.text));
-      res.steps.forEach((s) => box.appendChild(el('div', {class: 'muted'}, `\\u21B3 ${s.table} (${s.roll}): ${s.text}`)));
+      box.replaceChildren(el('strong', {}, `${res.die} \u2192 ${res.roll}: `), document.createTextNode(res.text));
+      res.steps.forEach((s) => box.appendChild(el('div', {class: 'muted'}, `\u21B3 ${s.table} (${s.roll}): ${s.text}`)));
       out.dataset.text = res.text;
       out.dataset.table = res.table;
       out.hidden = false;
@@ -135,7 +136,16 @@ function wireCard(card) {
     if (!out.dataset.text) return;
     try {
       await postForm('/api/screen/notes/append', {game: gameKey || '_global', text: out.dataset.text, heading: out.dataset.table});
-      e.target.textContent = 'Sent \\u2713';
+      e.target.textContent = 'Sent \u2713';
+    } catch (err) { say(err.message); }
+  });
+
+  const logBtn = card.querySelector('.log-btn');
+  if (logBtn) logBtn.addEventListener('click', async () => {
+    const out = card.querySelector('.roll-out');
+    if (!out.dataset.text) return;
+    try {
+      say(await logToSession(`${out.dataset.table}: ${out.dataset.text}`, 'roll'));
     } catch (err) { say(err.message); }
   });
 

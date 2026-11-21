@@ -11,7 +11,7 @@ caves, and wilderness/world maps on the **Maps** tab, and use a dice roller,
 NPC generator, initiative tracker, and encounter/loot generator while you
 play - plus a **GM Screen** with per-system quick-reference cards, **random
 tables** you can roll (and chain together), and a **player view** for maps with
-fog of war. Point it at a local or hosted LLM in Settings and it also picks up a
+fog of war and **tokens** you can drag around while the players watch. Point it at a local or hosted LLM in Settings and it also picks up a
 handful of AI-assisted tools - "Ask the Library" questions with page citations,
 campaign recaps and prep suggestions, session recaps, NPC dialogue, and
 one-shot adventure generation - see **AI features** below. The auto-detected
@@ -59,6 +59,26 @@ results - see **OCR for scanned books** below to make them searchable.
 
 Until a library folder is set, scanned and indexed, the home page shows a
 short "start here" card pointing at the next step.
+
+## Finding your way around
+
+- **Home** lists your games and, once you have some work in progress, a
+  **Pick up where you left off** strip: the campaigns you touched last (with
+  how much of their next session is prepped), your latest maps and your latest
+  bookmarks, across every game, one click each.
+- **Quick jump** (the **Jump to...** button in the header, or **Ctrl+K** /
+  **Cmd+K** anywhere) searches your own stuff by name: campaigns, NPCs,
+  locations, factions, plot threads, sessions, maps, random tables, bookmarks
+  and every page of the app. Arrow keys and Enter pick a result, Escape closes
+  it, and results from the game you're in rank first. An empty box shows what
+  you worked on last. The last row always runs the same words as a Library
+  search. Jumping to an NPC, session and so on lands on that item and opens it.
+- The header menu groups the pages (**Games**, **Library**, **Campaigns**,
+  **Maps**, **GM Screen**, **Tools**, **More**), the game switcher keeps you in
+  the game you picked, and the current page is marked. On a phone the menu
+  folds behind the **Menu** button.
+- Changed CSS and JavaScript files carry a version in their URL, so after you
+  update the app a normal page load picks up the new look - no hard refresh.
 
 ## Which folders map to which "game"?
 
@@ -172,6 +192,17 @@ campaign, laid out the way most GM prep and campaign-wiki tools converge on:
   secrets/clues to seed, anything else prepped) and, after the fact, log
   what actually happened - so the next prep session builds on real events
   instead of guesswork.
+- **Session log** - a quick running log while you play. Pick a session (it
+  defaults to the one in progress), choose a kind - **note, scene, combat,
+  loot, clue** or **roll** - type a line and press Enter. Entries can be
+  edited, re-typed or deleted, and each session shows how many entries it has.
+  The Dice Roller and Random Tables pages have an **Add to session log**
+  button that drops a roll straight into the log of the game's most recently
+  active campaign that isn't completed (in its current session). When you ask
+  the AI for a **recap**, sessions with no written summary are recapped from
+  their log instead, and **Summarize** (on a session's log) turns one session's
+  log into a short summary you can add to that session. The Markdown export
+  includes the log in the GM copy only.
 - **Materials** - the books and pages you'll need to run it. This reuses
   the Bookmarks system rather than a second one: every campaign gets its
   own bookmark collection automatically, so anything you add here also
@@ -250,6 +281,19 @@ Each saved map has three extra ways to put it in front of players:
   when the generator's own grid is faint. For dungeon, interior, urban and
   underground maps the generator's square size is known, so the scale is
   exact; for other map types it's an estimate.
+- **Tokens** are markers for the party and the foes. On the GM's page add one
+  (name, colour, size), click **Place on map...**, then click the map. Drag a
+  token to move it; the player view follows within a couple of seconds. Tokens
+  can be renamed, recoloured, resized and marked **Hidden** - a hidden token
+  shows dashed on your screen and is never sent to the player view, so you can
+  set up an ambush. The fog layer stays on top of the tokens, and tokens are
+  left out of the saved/downloaded map and the print page.
+- **Handouts** are a letter, a rumour or a picture you can put on the player
+  view. Create them on the map page (text, or an image upload: PNG, JPEG, GIF
+  or WebP up to 4 MB), then **Show to players** - it opens as a full-screen
+  overlay on the player view, players can close it on their own screen, and
+  **Hide** takes it away for everyone. Editing a shown handout shows it again.
+  Handouts belong to the game, so any of its maps can show them.
 - Fog is a **visual cover only**. It hides the map on screen, but the full map
   is still in the page's source, so a player who knows how to "View Source"
   could see it. Use it at the table, not as a secret-keeper.
@@ -362,6 +406,29 @@ with a view/edit toggle and a large-text switch for reading at arm's length.
 - **Pin to screen** (on any Library search hit) makes a card that links
   straight to that book page, with a note.
 - Encounter and loot results can be sent to the session notes with one click.
+- Long card titles wrap instead of being cut off, and **Print cards** prints
+  just the reference cards in two columns (the header, notes and buttons are
+  left off the page), so you can build a paper GM screen.
+
+## Initiative tracker and saved encounters
+
+The initiative tracker keeps one active fight per game. The **Saved
+encounters** card on the same page stores line-ups you'll reuse. Give an
+encounter a name and write one group of foes per line:
+
+```
+4x Goblin (hp 7, init 1d20+2)
+Goblin Boss (hp 21, notes: carries the key)
+Wolf x2 (hp 11)
+```
+
+Only the name is required. `init` is a number, a roll, or a bare `+2` (meaning
+`1d20+2`); leave it out and each foe rolls 1d20. **Load into tracker** puts
+the foes on the board (each rolls its own initiative), **Save foes on the
+board** keeps whatever non-PC combatants are on it now, and the text of a
+saved encounter is editable in place and auto-saves. PCs are never part of a
+saved encounter, so they stay on the board between fights. The Library's
+**Stat block** panel (see below) can also add a creature to a saved encounter.
 
 ## Library search and Ask the Library
 
@@ -372,6 +439,16 @@ Quotes (`"red dragon"`) match an exact phrase, and word endings are handled
 for you (searching `dragon` also finds `dragons`). Anything you type is treated
 as plain text, so punctuation can't break the search. Each hit can be
 bookmarked or pinned to the GM Screen.
+
+Each hit also has a **Stat block** button that pulls creatures out of that
+page's text: name, HP, AC and an initiative bonus. Without an LLM configured
+it uses a pattern-matching pass that handles the common layouts (several
+creatures on one page are listed separately); with an LLM it asks the model to
+read the page and only keeps lines that contain numbers. Name, HP, initiative
+and how many are editable, then **Add to tracker** drops them on the
+initiative board or **Add to encounter** puts them in a saved encounter. It
+reads text, so the result is only as good as the extraction (OCR'd or
+multi-column pages can come out wrong) - check it against the page.
 "Ask the Library" (see **AI features**) builds on the same search.
 
 ## Random tables
@@ -393,12 +470,19 @@ app/
   main.py              app setup (lifespan, middleware, router wiring)
   web.py               shared templates + page context
   routers/             one module per area: dashboard, settings, games, library,
-                         bookmarks, campaigns, maps, screen, tools, tables, ops
+                         bookmarks, campaigns, maps, live, screen, tools, tables, ops
   config.py            static paths / defaults
   database.py          SQLite schema + helpers
   security.py          optional password (HTTP Basic) middleware
   backup.py            "my data" / full database snapshots
   gm_screen.py         GM Screen cards, per-system defaults, pins, notes
+  recent.py            "pick up where you left off" (recent campaigns/maps/sessions)
+  jump.py              quick-jump search across everything you've made
+  session_log.py       per-session running log (notes, scenes, combat, loot, clues, rolls)
+  saved_encounters.py  reusable initiative line-ups
+  handouts.py          text / image handouts shown on the player view
+  map_tokens.py        movable map tokens
+  live.py              live table state (what the player view polls)
   random_tables.py     random tables, rolling, [[chaining]], history
   campaigns.py          campaign planner (threads, cast, factions, locations, sessions, materials)
   campaign_ai.py        AI recap / prep suggestions for a campaign
@@ -423,6 +507,7 @@ app/
     ocr.py                 OCRs scanned (image-only) PDFs via EasyOCR + PyMuPDF
     search.py              full-text search queries
     ask.py                  "Ask the Library": retrieval + cited LLM answer
+    statblock.py             stat-block extraction from a page (patterns, optional LLM)
   tools/
     dice.py, npc_generator.py, initiative.py, encounters.py
   data/
@@ -470,7 +555,8 @@ There's a pytest suite (several hundred tests) covering the pure-logic
 pieces of the app and the web routes: the dice parser, all the map-generation
 logic, the campaign planner and its exports, bookmarks, the saved-maps store
 (including fog of war), the GM Screen, random tables, library search and Ask
-the Library, backups, the optional password, the database schema/migration
+the Library, quick jump, the session log, saved encounters, stat-block
+extraction, map tokens and handouts, backups, the optional password, the database schema/migration
 logic, and the games.json series-to-game mapping. Every page has a smoke test
 that checks it still renders.
 
@@ -488,19 +574,26 @@ suite never reads or writes your real `gm_helper.db` or
 `app/data/games.json`, so it's always safe to run.
 
 The suite checks what the server sends but doesn't run the pages' JavaScript
-(no Selenium/Playwright browser tests), so fog of war, print tiling, the
-GM Screen toggles and the nav menu still need a quick click-through by hand
-after changes to them. GitHub Actions runs the tests before every Docker image
+(no Selenium/Playwright browser tests), so fog of war, token dragging, the
+quick-jump box, print tiling, the GM Screen toggles and the nav menu still
+need a quick click-through by hand after changes to them. GitHub Actions runs the tests before every Docker image
 build.
 
 ## Known limitations (v1)
 
-- Full-text search only - no structured stat-block/monster extraction yet.
+- Stat-block extraction is a best-effort read of page text, not a monster
+  database - always check it against the page.
 - OCR output quality varies with scan quality and page layout (see above);
   it isn't a substitute for a clean embedded text layer.
-- Initiative tracker keeps one active encounter per game at a time.
+- Initiative tracker keeps one active encounter per game at a time (saved
+  encounters are unlimited).
 - Fog of war on the player view is visual only (the full map is in the page
-  source) - fine at the table, not a way to keep a map truly secret.
+  source) - fine at the table, not a way to keep a map truly secret. Hidden
+  tokens are different: they are never sent to the player view at all.
+- Handout images are served by the app and are only protected by the optional
+  app password - anyone on your network who has the link (and the password,
+  if set) can open them. Tokens and handouts reach the player view by
+  polling every couple of seconds, not instantly.
 - "Ask the Library" is only as good as the model you connect and the text
   that was extracted; always check the cited pages for rules you'll rely on.
 - Single-user. The optional password is basic protection for a trusted

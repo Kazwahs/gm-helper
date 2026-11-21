@@ -2,6 +2,14 @@
 {% block title %}{{ map.title }}{% endblock %}
 {% block body %}
 <div class="player-stage" id="player-stage" style="visibility:hidden;">{{ map.svg | safe }}</div>
+<div class="handout-overlay" id="handout" hidden role="dialog" aria-modal="false" aria-labelledby="handout-title">
+  <div class="handout-card">
+    <button type="button" class="handout-close secondary" id="handout-close" aria-label="Close handout">&times;</button>
+    <h2 id="handout-title"></h2>
+    <div id="handout-body" class="md"></div>
+    <img id="handout-image" alt="" hidden>
+  </div>
+</div>
 <div class="player-bar">
   <span class="player-title">{{ map.title }}</span>
   <span id="player-status" class="muted" role="status"></span>
@@ -17,22 +25,54 @@ svg.removeAttribute('width');
 svg.removeAttribute('height');
 
 const statusEl = document.getElementById('player-status');
+const handoutBox = document.getElementById('handout');
 let lastVersion = null;
+let dismissedHandout = null;     // signature of a handout the table closed on this screen
+
+function showHandout(h) {
+  if (!h) { handoutBox.hidden = true; dismissedHandout = null; return; }
+  const sig = JSON.stringify([h.id, h.title, h.body, h.image_url]);
+  if (sig === dismissedHandout) return;
+  document.getElementById('handout-title').textContent = h.title;
+  const body = document.getElementById('handout-body');
+  const img = document.getElementById('handout-image');
+  if (h.kind === 'image' && h.image_url) {
+    body.replaceChildren();
+    img.src = h.image_url;
+    img.alt = h.title;
+    img.hidden = false;
+  } else {
+    img.hidden = true;
+    img.removeAttribute('src');
+    body.replaceChildren(renderMarkdown(h.body));
+  }
+  handoutBox.dataset.sig = sig;
+  handoutBox.hidden = false;
+}
+
+function closeHandout() {
+  dismissedHandout = handoutBox.dataset.sig || null;
+  handoutBox.hidden = true;
+}
+document.getElementById('handout-close').addEventListener('click', closeHandout);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !handoutBox.hidden) closeHandout(); });
 
 function show(state) {
   if (state.v === lastVersion) return;
   lastVersion = state.v;
-  applyFog(svg, state, 1);
+  drawTokens(svg, state.tokens, state.token_radius);
+  applyFog(svg, state.reveal, 1);
+  showHandout(state.handout);
   document.getElementById('player-stage').style.visibility = 'visible';
 }
 
-// The page is rendered with the current fog already in it (no flash of the
-// whole map), then re-checks the server every couple of seconds.
-show({{ reveal | tojson }});
+// The page is rendered with the current table state already in it (no flash of
+// the whole map), then re-checks the server every couple of seconds.
+show({{ live | tojson }});
 
 async function poll() {
   try {
-    const res = await fetch(`/api/maps/${mapId}/reveal`, {cache: 'no-store'});
+    const res = await fetch(`/api/maps/${mapId}/live`, {cache: 'no-store'});
     if (!res.ok) throw new Error('bad response');
     show(await res.json());
     statusEl.textContent = '';

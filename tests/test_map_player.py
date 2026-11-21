@@ -129,7 +129,7 @@ def test_player_page_is_nav_less_and_embeds_current_fog(client, map_id):
     assert "<nav" not in html and "topbar" not in html          # no GM navigation for the players
     assert 'id="player-stage"' in html and "<svg" in html
     assert '"enabled": true' in html or '"enabled":true' in html  # initial fog is in the page: no flash of the full map
-    assert "/api/maps/${mapId}/reveal" in html and f"const mapId = {map_id};" in html
+    assert "/api/maps/${mapId}/live" in html and f"const mapId = {map_id};" in html
     assert client.get("/maps/999/player").status_code == 404
 
 

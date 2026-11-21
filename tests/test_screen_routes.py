@@ -90,3 +90,34 @@ def test_card_text_is_escaped_in_the_page(client):
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert card["id"]
+
+
+# ---- card titles wrap instead of being cut off; the screen prints cleanly ----
+
+def test_card_titles_are_wrapping_textareas_not_single_line_inputs(client):
+    html = client.get("/screen?game=rifts").text
+    assert 'textarea class="screen-card-title"' in html
+    assert 'input type="text" class="screen-card-title"' not in html
+
+
+def test_title_edits_are_collapsed_to_one_tidy_line(client):
+    card = client.post("/api/screen/cards", data={"game": "rifts", "title": "T", "body": ""}).json()
+    r = client.post(f"/api/screen/cards/{card['id']}", data={"field": "title", "value": "  Melee   round\n& attack  "})
+    assert r.status_code == 200
+    from app import gm_screen
+    assert gm_screen.get_card(card["id"])["title"] == "Melee round & attack"
+
+
+def test_title_is_length_capped_and_cannot_be_blank(client):
+    card = client.post("/api/screen/cards", data={"game": "rifts", "title": "T", "body": ""}).json()
+    client.post(f"/api/screen/cards/{card['id']}", data={"field": "title", "value": "x" * 500})
+    from app import gm_screen
+    assert len(gm_screen.get_card(card["id"])["title"]) == 200
+    r = client.post(f"/api/screen/cards/{card['id']}", data={"field": "title", "value": " \n "})
+    assert r.status_code == 400
+
+
+def test_screen_has_a_print_button_and_print_styles(client):
+    assert 'id="print-btn"' in client.get("/screen?game=rifts").text
+    css = client.get("/static/style.css").text
+    assert "@media print" in css and ".screen-card-actions" in css and "column-count: 2" in css

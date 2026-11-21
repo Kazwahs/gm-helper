@@ -1,6 +1,8 @@
 """Home page: the game picker."""
 from fastapi import APIRouter, Request
+from fastapi.responses import JSONResponse
 
+from .. import jump, recent
 from ..library import games as games_module
 from ..library import scanner
 from ..web import base_ctx, library_root, templates
@@ -25,5 +27,12 @@ def index(request: Request):
         setup_hint = "index"
     else:
         setup_hint = None
-    ctx.update({"games": games, "needs_setup": not root, "setup_hint": setup_hint, "library_status": status})
+    ctx.update({"games": games, "needs_setup": not root, "setup_hint": setup_hint, "library_status": status,
+                "activity": recent.home_activity()})
     return templates.TemplateResponse(request, "index.html", ctx)
+
+
+@router.get("/api/jump")
+def api_jump(q: str = "", game: str = None):
+    """Results for the Ctrl+K quick-jump box."""
+    return JSONResponse({"results": jump.search(q, game_key=game)})

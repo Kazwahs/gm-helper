@@ -83,6 +83,65 @@
   </div>
   <p class="muted" id="fog-hint" style="margin-bottom:0;" hidden></p>
 </div>
+
+<div class="card" id="token-card">
+  <h3 style="margin-top:0;">Tokens</h3>
+  <p class="muted">
+    Markers for the party and the foes. Add one, then drag it around the map &mdash; the player view follows within a
+    couple of seconds. A token marked <em>hidden</em> shows (dashed) on your screen only, so you can set up an ambush.
+  </p>
+  <div class="row">
+    <input type="text" id="token-label" maxlength="24" placeholder="Name (e.g. Aria, Goblin 1)" style="min-width:200px;" aria-label="Token name">
+    <input type="color" id="token-color" value="#c0863f" aria-label="Token colour" style="width:2.6rem; height:2.2rem; padding:0;">
+    <select id="token-size" aria-label="Token size">
+      <option value="1">Normal</option><option value="2">Large</option>
+      <option value="3">Huge</option><option value="4">Gargantuan</option>
+    </select>
+    <label class="inline-check"><input type="checkbox" id="token-hidden"> Hidden from players</label>
+    <button type="button" id="place-token-btn">Place on map&hellip;</button>
+  </div>
+  <p class="muted" id="token-hint" role="status" style="margin:0.4rem 0 0;" hidden></p>
+  <div id="token-list" class="token-list" aria-label="Tokens on this map"></div>
+  <div class="row" style="margin-top:0.6rem;">
+    <button type="button" id="clear-tokens-btn" class="secondary danger" hidden>Remove all tokens</button>
+  </div>
+</div>
+
+<div class="card" id="handout-card">
+  <h3 style="margin-top:0;">Handouts</h3>
+  <p class="muted">
+    Put a letter, a rumour or a picture on the player view, then take it down again. Handouts belong to
+    {{ game.name if game else map.game_key }}, so any of its maps can show them.
+  </p>
+  <div class="row">
+    <button type="button" id="hide-handout-btn" class="secondary" hidden>Hide the handout from players</button>
+    <span class="muted" id="handout-msg" role="status"></span>
+  </div>
+  <div id="handout-list" class="handout-list" aria-label="Handouts"></div>
+  <details style="margin-top:0.75rem;">
+    <summary>New text handout</summary>
+    <form id="handout-form" style="margin-top:0.6rem;">
+      <div class="field-group">
+        <label class="field-label" for="handout-new-title">Title</label>
+        <input type="text" id="handout-new-title" maxlength="80" required style="max-width:380px;">
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="handout-new-body">Text</label>
+        <textarea id="handout-new-body" rows="5" maxlength="6000" required></textarea>
+      </div>
+      <button type="submit">Save handout</button>
+    </form>
+  </details>
+  <details style="margin-top:0.5rem;">
+    <summary>Upload an image handout</summary>
+    <form id="handout-image-form" style="margin-top:0.6rem;" class="row">
+      <input type="text" id="handout-image-title" maxlength="80" placeholder="Title (optional)" style="min-width:200px;">
+      <input type="file" id="handout-image-file" accept="image/png,image/jpeg,image/gif,image/webp" required>
+      <button type="submit">Upload</button>
+    </form>
+    <p class="muted" style="margin:0.3rem 0 0;">PNG, JPEG, GIF or WebP, up to 4 MB.</p>
+  </details>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -108,7 +167,7 @@ function mapSvgRoot() {
 // transient selection-highlight box so it never ends up saved or exported.
 function currentSvgString() {
   const clone = mapSvgRoot().cloneNode(true);
-  clone.querySelectorAll('.map-el-selection-box, .fog-el').forEach((n) => n.remove());
+  clone.querySelectorAll('.map-el-selection-box, .fog-el, .token-el').forEach((n) => n.remove());
   clone.querySelectorAll('.map-el.selected').forEach((n) => n.classList.remove('selected'));
   return new XMLSerializer().serializeToString(clone);
 }
@@ -456,5 +515,220 @@ editModeBtn.addEventListener('click', () => {
 
 drawFog();
 refreshRevealUI();
+
+// ------------------------------------------------------------ tokens
+let tokens = {{ tokens | tojson }};
+const tokenRadius = {{ token_radius | tojson }};
+const tokenList = document.getElementById('token-list');
+const tokenHint = document.getElementById('token-hint');
+const placeBtn = document.getElementById('place-token-btn');
+let placingToken = false;
+let tokenDrag = null;
+
+function sayToken(text) { tokenHint.textContent = text || ''; tokenHint.hidden = !text; }
+
+function redrawTokens() {
+  drawTokens(mapSvgRoot(), tokens, tokenRadius);
+  drawFog();                      // keep the fog layer on top of the tokens
+  document.getElementById('clear-tokens-btn').hidden = tokens.length === 0;
+  renderTokenList();
+}
+
+async function tokenCall(url, data) {
+  try { return await postForm(url, data); }
+  catch (err) { sayToken(err.message); return null; }
+}
+
+function renderTokenList() {
+  tokenList.replaceChildren(...tokens.map((t) => {
+    const label = el('input', {type: 'text', maxlength: '24', 'aria-label': 'Token name'});
+    label.value = t.label;
+    const color = el('input', {type: 'color', 'aria-label': 'Token colour'});
+    color.value = t.color;
+    const size = el('select', {'aria-label': 'Token size'}, [['1', 'Normal'], ['2', 'Large'], ['3', 'Huge'], ['4', 'Gargantuan']].map(([v, name]) => {
+      const o = el('option', {value: v}, name); if (Number(v) === t.size) o.selected = true; return o;
+    }));
+    const hide = el('label', {class: 'inline-check'});
+    const hideBox = el('input', {type: 'checkbox'});
+    hideBox.checked = t.hidden;
+    hide.append(hideBox, document.createTextNode(' Hidden'));
+    const del = el('button', {type: 'button', class: 'secondary', 'aria-label': 'Remove token'}, '\u2715');
+    const save = async (field, value) => {
+      const res = await tokenCall(`/api/map-tokens/${t.id}/update`, {field, value});
+      if (res) { Object.assign(t, res.token); redrawTokens(); sayToken(''); }
+    };
+    label.addEventListener('change', () => save('label', label.value));
+    color.addEventListener('change', () => save('color', color.value));
+    size.addEventListener('change', () => save('size', size.value));
+    hideBox.addEventListener('change', () => save('hidden', hideBox.checked ? 1 : 0));
+    del.addEventListener('click', async () => {
+      if (await tokenCall(`/api/map-tokens/${t.id}/delete`, {})) { tokens = tokens.filter((x) => x.id !== t.id); redrawTokens(); }
+    });
+    return el('div', {class: 'token-row'}, [color, label, size, hide, del]);
+  }));
+}
+
+placeBtn.addEventListener('click', () => {
+  if (placingToken) { setPlacing(false); return; }
+  if (!document.getElementById('token-label').value.trim()) { sayToken('Type a name for the token first.'); document.getElementById('token-label').focus(); return; }
+  if (editMode || revealMode) { sayToken('Turn off edit mode and reveal mode first, so the click places a token.'); return; }
+  setPlacing(true);
+});
+
+function setPlacing(on) {
+  placingToken = on;
+  mapFrame.classList.toggle('placing-token', on);
+  placeBtn.textContent = on ? 'Cancel placing' : 'Place on map\u2026';
+  placeBtn.classList.toggle('active-toggle', on);
+  sayToken(on ? 'Click the map where the token goes.' : '');
+}
+
+mapFrame.addEventListener('click', async (e) => {
+  if (!placingToken || e.target.closest('.token')) return;
+  const pt = toSvgPoint(mapSvgRoot(), e);
+  const res = await tokenCall(`/api/maps/${mapId}/tokens`, {
+    label: document.getElementById('token-label').value, x: pt.x, y: pt.y,
+    color: document.getElementById('token-color').value, size: document.getElementById('token-size').value,
+    hidden: document.getElementById('token-hidden').checked ? 1 : 0,
+  });
+  if (!res) return;
+  tokens.push(res.token);
+  document.getElementById('token-label').value = '';
+  setPlacing(false);
+  redrawTokens();
+});
+
+// dragging a token (any time you're not editing the map or revealing fog)
+mapFrame.addEventListener('mousedown', (e) => {
+  if (editMode || revealMode || placingToken || e.button !== 0) return;
+  const node = e.target.closest('.token');
+  if (!node) return;
+  const t = tokens.find((x) => String(x.id) === node.dataset.id);
+  if (!t) return;
+  e.preventDefault();
+  const start = toSvgPoint(mapSvgRoot(), e);
+  tokenDrag = {t, node, dx: t.x - start.x, dy: t.y - start.y, moved: false};
+});
+document.addEventListener('mousemove', (e) => {
+  if (!tokenDrag) return;
+  const pt = toSvgPoint(mapSvgRoot(), e);
+  tokenDrag.t.x = Math.round((pt.x + tokenDrag.dx) * 10) / 10;
+  tokenDrag.t.y = Math.round((pt.y + tokenDrag.dy) * 10) / 10;
+  tokenDrag.moved = true;
+  tokenDrag.node.setAttribute('transform', `translate(${tokenDrag.t.x},${tokenDrag.t.y})`);
+});
+document.addEventListener('mouseup', async () => {
+  if (!tokenDrag) return;
+  const {t, moved} = tokenDrag;
+  tokenDrag = null;
+  if (!moved) return;
+  const res = await tokenCall(`/api/map-tokens/${t.id}/move`, {x: t.x, y: t.y});
+  if (res) Object.assign(t, res.token);
+});
+
+document.getElementById('clear-tokens-btn').addEventListener('click', async () => {
+  if (!confirm('Remove every token from this map?')) return;
+  if (await tokenCall(`/api/maps/${mapId}/tokens/clear`, {})) { tokens = []; redrawTokens(); }
+});
+
+// ------------------------------------------------------------ handouts
+let handoutItems = {{ handouts | tojson }};
+let shownHandoutId = {{ (shown_handout.id if shown_handout else None) | tojson }};
+const handoutList = document.getElementById('handout-list');
+const handoutMsg = document.getElementById('handout-msg');
+const hideHandoutBtn = document.getElementById('hide-handout-btn');
+const sayHandout = (t) => { handoutMsg.textContent = t || ''; };
+
+async function handoutCall(url, data) {
+  try { return await postForm(url, data); }
+  catch (err) { sayHandout(err.message); return null; }
+}
+
+function renderHandouts() {
+  hideHandoutBtn.hidden = shownHandoutId === null;
+  if (!handoutItems.length) {
+    handoutList.replaceChildren(el('p', {class: 'muted'}, 'No handouts yet - write one or upload a picture below.'));
+    return;
+  }
+  handoutList.replaceChildren(...handoutItems.map((h) => {
+    const live = h.id === shownHandoutId;
+    const title = el('input', {type: 'text', maxlength: '80', class: 'handout-title', 'aria-label': 'Handout title'});
+    title.value = h.title;
+    title.addEventListener('change', async () => {
+      const res = await handoutCall(`/api/handouts/${h.id}/update`, {field: 'title', value: title.value});
+      if (res) { Object.assign(h, res.handout); sayHandout(''); } else title.value = h.title;
+    });
+    const showBtn = el('button', {type: 'button', class: live ? 'secondary' : ''}, live ? 'Showing \u2713' : 'Show to players');
+    showBtn.addEventListener('click', async () => {
+      if (live) return;
+      if (await handoutCall(`/api/maps/${mapId}/handout/show`, {handout_id: h.id})) { shownHandoutId = h.id; sayHandout(''); renderHandouts(); }
+    });
+    const del = el('button', {type: 'button', class: 'secondary', 'aria-label': 'Delete handout'}, 'Delete');
+    del.addEventListener('click', async () => {
+      if (!confirm(`Delete the handout "${h.title}"?`)) return;
+      if (await handoutCall(`/api/handouts/${h.id}/delete`, {})) {
+        handoutItems = handoutItems.filter((x) => x.id !== h.id);
+        if (shownHandoutId === h.id) shownHandoutId = null;
+        renderHandouts();
+      }
+    });
+    const row = el('div', {class: 'handout-row'}, [
+      h.kind === 'image' ? el('img', {class: 'handout-thumb', src: h.image_url, alt: ''}) : el('span', {'aria-hidden': 'true'}, '\ud83d\udcdc'),
+      title, showBtn, del,
+    ]);
+    if (h.kind !== 'text') return row;
+    // text handouts can be edited in place
+    const body = el('textarea', {rows: '3', maxlength: '6000', 'aria-label': 'Handout text', style: 'margin-top:0.4rem;'});
+    body.value = h.body;
+    let timer = null;
+    const saveBody = async () => {
+      const res = await handoutCall(`/api/handouts/${h.id}/update`, {field: 'body', value: body.value});
+      if (res) { Object.assign(h, res.handout); sayHandout(''); }
+    };
+    body.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(saveBody, 800); });
+    body.addEventListener('change', () => { clearTimeout(timer); saveBody(); });
+    return el('div', {class: 'subcard'}, [row, body]);
+  }));
+}
+
+hideHandoutBtn.addEventListener('click', async () => {
+  if (await handoutCall(`/api/maps/${mapId}/handout/hide`, {})) { shownHandoutId = null; sayHandout(''); renderHandouts(); }
+});
+
+document.getElementById('handout-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await handoutCall('/api/handouts', {
+    game: gameKey, title: document.getElementById('handout-new-title').value, body: document.getElementById('handout-new-body').value,
+  });
+  if (!res) return;
+  handoutItems.unshift(Object.assign({shown_on: []}, res.handout));
+  e.target.reset();
+  e.target.closest('details').open = false;
+  sayHandout('');
+  renderHandouts();
+});
+
+document.getElementById('handout-image-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const file = document.getElementById('handout-image-file').files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('game', gameKey);
+  form.append('title', document.getElementById('handout-image-title').value);
+  form.append('file', file);
+  try {
+    const res = await fetch('/api/handouts/image', {method: 'POST', body: form});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    handoutItems.unshift(Object.assign({shown_on: []}, data.handout));
+    e.target.reset();
+    e.target.closest('details').open = false;
+    sayHandout('');
+    renderHandouts();
+  } catch (err) { sayHandout(err.message); }
+});
+
+redrawTokens();
+renderHandouts();
 </script>
 {% endblock %}

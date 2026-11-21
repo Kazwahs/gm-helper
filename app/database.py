@@ -63,6 +63,18 @@ CREATE TABLE IF NOT EXISTS combat_sessions (
     updated_at  TEXT DEFAULT (datetime('now'))
 );
 
+-- Prepped encounters for the initiative tracker: a named group of foes (see
+-- saved_encounters.py). entries_json is a list of {name, quantity, hp, initiative, notes}.
+CREATE TABLE IF NOT EXISTS saved_encounters (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_key     TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    entries_json TEXT NOT NULL DEFAULT '[]',
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_saved_encounters_game_key ON saved_encounters(game_key);
+
 CREATE TABLE IF NOT EXISTS bookmark_collections (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     name       TEXT NOT NULL UNIQUE,
@@ -156,6 +168,71 @@ CREATE TABLE IF NOT EXISTS campaign_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_campaign_sessions_campaign ON campaign_sessions(campaign_id);
 
+-- Any change to a campaign's threads, cast, locations, factions or sessions counts
+-- as activity on the campaign, so the home page's "recently active" list is accurate.
+CREATE TRIGGER IF NOT EXISTS trg_campaign_threads_insert_touch AFTER INSERT ON campaign_threads
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_threads_update_touch AFTER UPDATE ON campaign_threads
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_npcs_insert_touch AFTER INSERT ON campaign_npcs
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_npcs_update_touch AFTER UPDATE ON campaign_npcs
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_locations_insert_touch AFTER INSERT ON campaign_locations
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_locations_update_touch AFTER UPDATE ON campaign_locations
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_factions_insert_touch AFTER INSERT ON campaign_factions
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_factions_update_touch AFTER UPDATE ON campaign_factions
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_sessions_insert_touch AFTER INSERT ON campaign_sessions
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_sessions_update_touch AFTER UPDATE ON campaign_sessions
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+
+-- Session log: timestamped one-liners kept while a session is being played. They
+-- feed the recap and the session summary (see session_log.py). session_id is NULL
+-- for a line that isn't tied to a particular session.
+CREATE TABLE IF NOT EXISTS campaign_session_log (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    session_id  INTEGER REFERENCES campaign_sessions(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'note',  -- note / scene / combat / loot / clue / roll
+    text        TEXT NOT NULL,
+    created_at  TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_session_log_campaign ON campaign_session_log(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_session_log_session ON campaign_session_log(session_id);
+CREATE TRIGGER IF NOT EXISTS trg_campaign_session_log_insert_touch AFTER INSERT ON campaign_session_log
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_campaign_session_log_update_touch AFTER UPDATE ON campaign_session_log
+BEGIN
+    UPDATE campaigns SET updated_at = datetime('now') WHERE id = NEW.campaign_id;
+END;
+
 -- Generated maps. A map belongs to one game and can optionally be attached
 -- to one campaign (like a material, but rendered rather than a book/page
 -- reference). The rendered SVG is stored as-is so a saved map redisplays
@@ -174,6 +251,33 @@ CREATE TABLE IF NOT EXISTS maps (
 );
 CREATE INDEX IF NOT EXISTS idx_maps_game_key ON maps(game_key);
 CREATE INDEX IF NOT EXISTS idx_maps_campaign ON maps(campaign_id);
+
+-- Handouts (text or an image) a GM can put on a map's player view, and tokens
+-- dragged around on a map. See handouts.py and map_tokens.py.
+CREATE TABLE IF NOT EXISTS handouts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_key   TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    kind       TEXT NOT NULL DEFAULT 'text',   -- text / image
+    body       TEXT,
+    image      BLOB,
+    mime       TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_handouts_game_key ON handouts(game_key);
+
+CREATE TABLE IF NOT EXISTS map_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    map_id     INTEGER NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+    label      TEXT NOT NULL,
+    x          REAL NOT NULL,
+    y          REAL NOT NULL,
+    color      TEXT NOT NULL DEFAULT '#c0863f',
+    size       INTEGER NOT NULL DEFAULT 1,
+    hidden     INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_map_tokens_map ON map_tokens(map_id);
 
 -- GM Screen: a per-game (or "_global") board of quick-reference cards a GM
 -- keeps open during play, plus one freeform scratchpad for session-specific
@@ -276,6 +380,8 @@ def init_db():
     _ensure_column("maps", "original_svg", "TEXT")
     # Fog-of-war state for the player view: {"enabled", "areas", "v"} as JSON.
     _ensure_column("maps", "reveal_json", "TEXT")
+    _ensure_column("maps", "shown_handout_id", "INTEGER REFERENCES handouts(id) ON DELETE SET NULL")
+    _ensure_column("maps", "live_v", "INTEGER NOT NULL DEFAULT 0")
     # A GM Screen card can be a pinned book page (opens the PDF at that page).
     _ensure_column("gm_screen_cards", "book_id", "INTEGER")
     _ensure_column("gm_screen_cards", "page_number", "INTEGER")

@@ -7,6 +7,7 @@ from .. import llm as llm_module
 from ..tools import dice as dice_tool
 from ..tools import npc_generator
 from ..tools import initiative as initiative_tool
+from .. import saved_encounters
 from ..tools import encounters as encounters_tool
 from ..web import base_ctx, game_ctx, templates
 
@@ -221,3 +222,55 @@ def api_loot_generate(tier: str = Form("mid"), include_item: bool = Form(True)):
         return JSONResponse(encounters_tool.generate_loot(tier, include_item))
     except ValueError as e:
         return JSONResponse({"error": str(e)}, status_code=400)
+
+
+# ------------------------------------------------------- saved encounters
+@router.get("/api/initiative/encounters")
+def api_saved_encounters(game: str = "_global"):
+    return JSONResponse({"encounters": saved_encounters.list_encounters(game)})
+
+
+@router.post("/api/initiative/encounters")
+def api_saved_encounter_create(game: str = Form("_global"), name: str = Form(""), body: str = Form(""),
+                                from_board: int = Form(0)):
+    try:
+        if from_board:
+            enc_id = saved_encounters.save_board_foes(game, name)
+        else:
+            enc_id = saved_encounters.create_encounter(game, name, body)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"encounter": saved_encounters.get_encounter(enc_id)})
+
+
+@router.post("/api/initiative/encounters/{encounter_id}/update")
+def api_saved_encounter_update(encounter_id: int, field: str = Form(...), value: str = Form("")):
+    try:
+        saved_encounters.update_encounter(encounter_id, field, value)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"encounter": saved_encounters.get_encounter(encounter_id)})
+
+
+@router.post("/api/initiative/encounters/{encounter_id}/delete")
+def api_saved_encounter_delete(encounter_id: int):
+    saved_encounters.delete_encounter(encounter_id)
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/initiative/encounters/{encounter_id}/load")
+def api_saved_encounter_load(encounter_id: int, game: str = Form("_global")):
+    try:
+        return JSONResponse(saved_encounters.load_into_tracker(encounter_id, game))
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+
+
+@router.post("/api/initiative/encounters/{encounter_id}/add-foe")
+def api_saved_encounter_add_foe(encounter_id: int, name: str = Form(""), quantity: str = Form("1"),
+                                 hp: str = Form(""), initiative: str = Form("")):
+    try:
+        saved_encounters.append_foe(encounter_id, name, quantity, hp, initiative)
+    except ValueError as e:
+        return JSONResponse({"error": str(e)}, status_code=400)
+    return JSONResponse({"encounter": saved_encounters.get_encounter(encounter_id)})

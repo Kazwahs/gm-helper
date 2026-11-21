@@ -8,7 +8,7 @@ notes - and only shows sessions that have actually been played.
 """
 import re
 
-from . import campaigns
+from . import campaigns, session_log
 
 
 def slugify(text, fallback="campaign"):
@@ -118,6 +118,10 @@ def to_markdown(campaign_id, player_safe=False, game_name=None):
                 _field(out, "Other prep", s["prep_notes"])
             if _block(s["summary"]):
                 out += ["**What happened:**", "", _block(s["summary"])]
+            if not player_safe:  # raw log lines are GM-only: they can mention secrets
+                log = session_log.session_log_text(s["id"])
+                if log:
+                    out += ["", "**Session log:**", "", log] if _block(s["summary"]) else ["**Session log:**", "", log]
             out.append("")
 
     if not player_safe and detail["materials"]:

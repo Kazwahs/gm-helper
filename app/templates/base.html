@@ -50,7 +50,19 @@
         </div>
       </details>
     </nav>
+    <button type="button" class="jump-btn" id="jump-btn" aria-haspopup="dialog" title="Quick jump (Ctrl+K)">
+      <span aria-hidden="true">&#128269;</span><span class="jump-btn-label">Jump to&hellip;</span><kbd>Ctrl K</kbd>
+    </button>
   </header>
+  <div class="jump-overlay" id="jump-overlay" hidden>
+    <div class="jump-dialog" role="dialog" aria-modal="true" aria-label="Quick jump">
+      <input type="text" id="jump-input" autocomplete="off" spellcheck="false" maxlength="80"
+             placeholder="Jump to a campaign, NPC, map, table, bookmark or tool"
+             role="combobox" aria-expanded="true" aria-controls="jump-results" aria-autocomplete="list">
+      <ul id="jump-results" role="listbox" aria-label="Results"></ul>
+      <p class="jump-hint muted"><kbd>&uarr;</kbd> <kbd>&darr;</kbd> to move, <kbd>Enter</kbd> to open, <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
   <main>
     {% if not library_root %}
       <div class="card" style="border-color: var(--accent);">

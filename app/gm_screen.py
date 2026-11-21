@@ -388,8 +388,11 @@ def get_card(card_id):
 def update_card_field(card_id, field, value):
     if field not in _CARD_FIELDS:
         raise ValueError(f"Unknown field: {field}")
-    if field == "title" and not (value or "").strip():
-        raise ValueError("A card needs a title.")
+    if field == "title":
+        # one line, single spaces, bounded (the title box wraps, but never holds a paragraph)
+        value = " ".join((value or "").split())[:200]
+        if not value:
+            raise ValueError("A card needs a title.")
     with database.get_cursor(commit=True) as cur:
         cur.execute(f"UPDATE gm_screen_cards SET {field} = ? WHERE id = ?", (value, card_id))
     return get_card(card_id)

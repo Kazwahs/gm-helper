@@ -5,7 +5,9 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .. import campaigns as campaigns_module
-from .. import maps_store
+from .. import handouts as handouts_module
+from .. import live as live_module
+from .. import map_tokens, maps_store
 from ..library import games as games_module
 from ..maps import MAP_TYPES, generate_map
 from ..maps import generator as map_generator
@@ -78,6 +80,7 @@ def map_player_page(request: Request, map_id: int):
         raise HTTPException(status_code=404, detail="Unknown map.")
     ctx = _standalone_ctx(request, m)
     ctx["reveal"] = maps_store.get_reveal(map_id)
+    ctx["live"] = live_module.live_state(map_id)
     return templates.TemplateResponse(request, "map_player.html", ctx)
 
 
@@ -144,6 +147,10 @@ def map_detail_page(request: Request, map_id: int):
         "campaigns": campaigns_module.list_campaigns(game_key=m["game_key"]),
         "linked_locations": campaigns_module.locations_for_map(map_id),
         "reveal": maps_store.get_reveal(map_id),
+        "tokens": map_tokens.list_tokens(map_id),
+        "token_radius": live_module.token_radius(m),
+        "handouts": handouts_module.list_handouts(m["game_key"]),
+        "shown_handout": handouts_module.shown_on_map(map_id),
     })
     return templates.TemplateResponse(request, "map_detail.html", ctx)
 

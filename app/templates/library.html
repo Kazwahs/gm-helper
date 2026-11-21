@@ -39,14 +39,16 @@
     </p>
   {% endif %}
   {% for g in groups %}
-    <div class="card" data-book-id="{{ g.book_id }}">
+    <div class="card" data-book-id="{{ g.book_id }}" data-game-key="{{ g.game_key or '' }}">
       <strong>{{ g.title }}</strong> <span class="muted">- {{ g.publisher }} / {{ g.series }}</span>
       {% for r in g.hits %}
         <div class="hit" data-page="{{ r.page_number }}">
           <a href="/books/{{ r.book_id }}/file#page={{ r.page_number }}" target="_blank" rel="noopener">Page {{ r.page_number }}</a>
           &middot; <button class="secondary bookmark-toggle-btn">+ Bookmark</button>
           <button class="secondary pin-page-btn" title="Add this page as a card on your GM Screen">&#128204; Pin to screen</button>
+          <button class="secondary statblock-btn" title="Find creature stat blocks on this page and add them to the initiative tracker">&#128220; Stat block</button>
           <div class="result-box">{{ r.snippet | safe }}</div>
+          <div class="statblock-out" hidden></div>
 
           <div class="bookmark-form" hidden>
             <div class="row">
@@ -151,6 +153,88 @@ document.querySelectorAll('.pin-page-btn').forEach(btn => {
     }
   });
 });
+
+// ---- stat blocks: find creatures on a page, check them, add to the tracker or a saved encounter ----
+document.querySelectorAll('.statblock-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const card = btn.closest('.card');
+    const hit = btn.closest('.hit');
+    const out = hit.querySelector('.statblock-out');
+    if (!out.hidden && out.childElementCount) { out.hidden = true; return; }   // second click folds it away
+    const bookGame = card.dataset.gameKey || (pinGameKey === '_global' ? '' : pinGameKey);
+    btn.disabled = true;
+    out.hidden = false;
+    out.replaceChildren(el('p', {class: 'muted'}, 'Reading the page...'));
+    try {
+      const res = await postForm('/api/library/statblock', {
+        book_id: card.dataset.bookId, page_number: hit.dataset.page, game: bookGame,
+      });
+      renderStatblocks(out, res, bookGame || '_global');
+    } catch (e) {
+      out.replaceChildren(el('p', {class: 'muted'}, e.message));
+    } finally { btn.disabled = false; }
+  });
+});
+
+async function renderStatblocks(out, res, game) {
+  const msg = el('p', {class: 'muted', role: 'status', style: 'min-height:1.2em; margin:0.3rem 0;'});
+  const encSelect = el('select', {'aria-label': 'Saved encounter to add to'});
+  encSelect.append(el('option', {value: ''}, 'Add to encounter\u2026'));
+  try {
+    const list = await (await fetch(`/api/initiative/encounters?game=${encodeURIComponent(game)}`)).json();
+    list.encounters.forEach(enc => encSelect.append(el('option', {value: String(enc.id)}, enc.name)));
+  } catch (e) { /* the tracker button still works without the list */ }
+  encSelect.append(el('option', {value: '__new__'}, '+ New encounter\u2026'));
+
+  const rows = res.creatures.map(c => {
+    const name = el('input', {type: 'text', maxlength: '80', 'aria-label': 'Name', style: 'min-width:150px; flex:1;'});
+    name.value = c.name;
+    const hp = el('input', {type: 'number', min: '1', placeholder: 'HP', 'aria-label': 'HP', style: 'width:90px;'});
+    if (c.hp) hp.value = c.hp;
+    const init = el('input', {type: 'text', 'aria-label': 'Initiative', title: 'A number or a roll like 1d20+2', style: 'width:100px;'});
+    init.value = c.initiative;
+    const qty = el('input', {type: 'number', min: '1', max: '30', value: '1', 'aria-label': 'How many', style: 'width:64px;'});
+    const toTracker = el('button', {type: 'button'}, 'Add to tracker');
+    const toEnc = el('button', {type: 'button', class: 'secondary'}, 'Add to encounter');
+    const ac = c.ac ? el('span', {class: 'muted'}, `AC ${c.ac}`) : null;
+
+    toTracker.addEventListener('click', async () => {
+      const data = {game, name: name.value, initiative: init.value, quantity: qty.value || '1'};
+      if (hp.value) data.hp = hp.value;
+      try {
+        await postForm('/api/initiative/add', data);
+        msg.textContent = `Added ${qty.value || 1} \u00d7 ${name.value} to the tracker.`;
+      } catch (e) { msg.textContent = e.message; }
+    });
+    toEnc.addEventListener('click', async () => {
+      let id = encSelect.value;
+      try {
+        if (!id) { msg.textContent = 'Choose an encounter first (or + New encounter).'; return; }
+        if (id === '__new__') {
+          const title = prompt('Name for the new encounter:');
+          if (!title) return;
+          const made = await postForm('/api/initiative/encounters', {game, name: title, body: ''});
+          id = String(made.encounter.id);
+          const opt = el('option', {value: id}, made.encounter.name);
+          encSelect.insertBefore(opt, encSelect.lastElementChild);
+          encSelect.value = id;
+        }
+        const res2 = await postForm(`/api/initiative/encounters/${id}/add-foe`, {
+          name: name.value, quantity: qty.value || '1', hp: hp.value, initiative: init.value,
+        });
+        msg.textContent = `Added to "${res2.encounter.name}" (${res2.encounter.foes} foes). Load it from the Initiative page.`;
+      } catch (e) { msg.textContent = e.message; }
+    });
+    return el('div', {class: 'row', style: 'margin:0.3rem 0;'}, [name, hp, init, qty, ac, toTracker, toEnc]);
+  });
+
+  out.replaceChildren(
+    el('p', {class: 'muted', style: 'margin:0.4rem 0 0.2rem;'},
+      (res.method === 'ai' ? 'Read by the AI' : 'Found by a text scan') +
+      ' \u2014 check the numbers before you use them. Name, HP, initiative and how many are editable.'),
+    ...rows, el('div', {class: 'row'}, [encSelect]), msg,
+  );
+}
 
 document.querySelectorAll('.bookmark-toggle-btn').forEach(btn => {
   btn.addEventListener('click', () => {

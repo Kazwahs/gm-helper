@@ -34,6 +34,12 @@
 
   <div class="dice-stage" id="dice-stage"></div>
   <div id="result" class="result-box" style="display:none;"></div>
+  {% if game %}
+    <div class="row" id="log-roll-row" style="margin-top:0.5rem;" hidden>
+      <button type="button" id="log-roll-btn" class="secondary">Add to session log</button>
+      <span class="muted" id="log-roll-msg" role="status"></span>
+    </div>
+  {% endif %}
 </div>
 {% endblock %}
 {% block scripts %}
@@ -94,6 +100,16 @@ function markDropped(rolls, dropped) {
   });
 }
 
+let lastRollLine = "";
+const logRollBtn = document.getElementById("log-roll-btn");
+if (logRollBtn) {
+  logRollBtn.addEventListener("click", async () => {
+    const msg = document.getElementById("log-roll-msg");
+    try { msg.textContent = await logToSession("Rolled " + lastRollLine, "roll"); }
+    catch (err) { msg.textContent = err.message; }
+  });
+}
+
 async function rollExpression(expr) {
   const box = document.getElementById("result");
   let res;
@@ -135,6 +151,9 @@ async function rollExpression(expr) {
     lines.push("");
     lines.push(`TOTAL: ${res.grand_total}`);
     box.textContent = lines.join("\n");
+    lastRollLine = res.groups.map((g) => `${g.expr} = ${g.total}`).join("; ") + (res.groups.length > 1 ? ` (total ${res.grand_total})` : "");
+    const logRow = document.getElementById("log-roll-row");
+    if (logRow) { logRow.hidden = false; document.getElementById("log-roll-msg").textContent = ""; }
   }, 750);
 }
 

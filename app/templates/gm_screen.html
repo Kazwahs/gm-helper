@@ -14,6 +14,7 @@
   <a href="/tools/npc{% if game %}?game={{ game.key }}{% endif %}">NPC Generator</a>
   <a href="/tools/encounters{% if game %}?game={{ game.key }}{% endif %}">Encounter Generator</a>
   <a href="/bookmarks">Bookmarks</a>
+  <button type="button" id="print-btn" class="secondary" title="Print the reference cards (notes and buttons are left off the page)">Print cards</button>
 </div>
 
 <div class="card">
@@ -45,7 +46,7 @@
   {% for card in cards %}
     <div class="screen-card{% if card.book_id %} screen-card-pinned{% endif %}" data-id="{{ card.id }}">
       <div class="screen-card-head">
-        <input type="text" class="screen-card-title" data-field="title" value="{{ card.title }}">
+        <textarea class="screen-card-title" data-field="title" rows="1" maxlength="200" aria-label="Card title">{{ card.title }}</textarea>
         <div class="screen-card-actions">
           <button type="button" class="icon-btn edit-card-btn" title="Edit text">&#9998;</button>
           <button type="button" class="icon-btn move-up-btn" title="Move up">&uarr;</button>
@@ -124,8 +125,28 @@ function setEditing(cardEl, editing) {
   if (editing) ta.focus(); else refreshView(cardEl);
 }
 
+// Card titles are one-line text that wraps instead of being cut off.
+function autosize(ta) {
+  ta.style.height = 'auto';
+  ta.style.height = ta.scrollHeight + 'px';
+}
+function titleBox(text) {
+  const ta = el('textarea', {class: 'screen-card-title', 'data-field': 'title', rows: '1', maxlength: '200', 'aria-label': 'Card title'});
+  ta.value = text;
+  return ta;
+}
+function sizeAllTitles() {
+  document.querySelectorAll('.screen-card-title').forEach(autosize);
+}
+
 function wireCard(cardEl) {
   const id = cardEl.dataset.id;
+  const titleEl = cardEl.querySelector('.screen-card-title');
+  titleEl.addEventListener('input', () => autosize(titleEl));
+  titleEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); }   // Enter = done (also fires "change")
+  });
+  autosize(titleEl);
   cardEl.querySelectorAll('[data-field]').forEach((field) => {
     field.addEventListener('change', async () => {
       try {
@@ -157,6 +178,16 @@ function wireCard(cardEl) {
 }
 
 document.querySelectorAll('.screen-card').forEach(wireCard);
+sizeAllTitles();
+window.addEventListener('resize', sizeAllTitles);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(sizeAllTitles);
+
+// Printing: make sure every card shows its rendered text (not a half-edited box).
+document.getElementById('print-btn').addEventListener('click', () => window.print());
+window.addEventListener('beforeprint', () => {
+  document.querySelectorAll('.screen-card').forEach(refreshView);
+  sizeAllTitles();
+});
 
 document.getElementById('add-card-btn').addEventListener('click', async () => {
   const title = prompt('Card title:');
@@ -170,7 +201,7 @@ document.getElementById('add-card-btn').addEventListener('click', async () => {
   }
   const div = el('div', {class: 'screen-card', 'data-id': card.id}, [
     el('div', {class: 'screen-card-head'}, [
-      el('input', {type: 'text', class: 'screen-card-title', 'data-field': 'title', value: card.title}),
+      titleBox(card.title),
       el('div', {class: 'screen-card-actions'}, [
         el('button', {type: 'button', class: 'icon-btn edit-card-btn', title: 'Edit text', html: '&#9998;'}),
         el('button', {type: 'button', class: 'icon-btn move-up-btn', title: 'Move up', html: '&uarr;'}),
@@ -202,6 +233,7 @@ const largeToggle = document.getElementById('large-text-toggle');
 function applyLarge(on) {
   document.getElementById('cards-grid').classList.toggle('large-text', on);
   largeToggle.checked = on;
+  sizeAllTitles();
 }
 try { applyLarge(localStorage.getItem('gmScreenLarge') === '1'); } catch (e) { /* ignore */ }
 largeToggle.addEventListener('change', () => {

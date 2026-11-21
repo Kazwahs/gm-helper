@@ -19,7 +19,7 @@ def list_maps(game_key=None, campaign_id=None):
         params.append(campaign_id)
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
-    sql += " ORDER BY created_at DESC"
+    sql += " ORDER BY created_at DESC, id DESC"  # id breaks same-second ties
     with database.get_cursor() as cur:
         rows = cur.execute(sql, params).fetchall()
     return [dict(r) for r in rows]
