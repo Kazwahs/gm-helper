@@ -74,6 +74,7 @@ def build_nav(path, game_key=None, remembered_key=None):
     more = [
         {"label": "Bookmarks", "href": "/bookmarks", "active": _under(path, "/bookmarks")},
         {"label": "Manage Games", "href": "/games/manage", "active": _under(path, "/games/manage")},
+        {"label": "Users", "href": "/users", "active": _under(path, "/users")},
         {"label": "Settings", "href": "/settings", "active": _under(path, "/settings")},
     ]
 

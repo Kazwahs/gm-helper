@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}GM Helper - Users{% endblock %}
+{% block content %}
+<h1>Users</h1>
+
+{% if not enabled %}
+<div class="card" id="setup-card">
+  <h3 style="margin-top:0;">Turn on accounts</h3>
+  <p>Right now GM Helper has no accounts: anyone who can reach it (and knows the shared password, if you set one) sees everything.
+     Create your own GM account to switch accounts on. After that everyone signs in; you can add players, put them in campaigns,
+     and choose which games and libraries each of them can open.</p>
+  <ul class="muted">
+    <li>The shared <code>GM_HELPER_PASSWORD</code> stops being used once the first account exists.</li>
+    <li>If you ever lose every GM password: <code>docker exec -it &lt;container&gt; python -m app.accounts reset-password &lt;name&gt;</code></li>
+  </ul>
+  <form id="setup-form" class="stack" style="max-width:24rem;">
+    <div class="field-group">
+      <label class="field-label" for="setup-username">Your username</label>
+      <input type="text" id="setup-username" maxlength="32" autocomplete="username" autocapitalize="none" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="setup-password">Password (at least {{ min_password }} characters)</label>
+      <input type="password" id="setup-password" maxlength="200" autocomplete="new-password" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="setup-confirm">Password again</label>
+      <input type="password" id="setup-confirm" maxlength="200" autocomplete="new-password" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="row"><button type="submit">Create GM account and turn on accounts</button></div>
+    <p class="muted" id="setup-msg" role="status" style="margin:0;"></p>
+  </form>
+</div>
+{% else %}
+<div id="users-root" data-me="{{ me.id if me else '' }}">
+  <div class="card">
+    <h3 style="margin-top:0;">People</h3>
+    <div class="table-scroll"><table class="users-table" id="users-table"></table></div>
+    <p class="muted" id="users-msg" role="status" style="margin:0.5rem 0 0;"></p>
+    <div id="temp-box" class="subcard" hidden></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Add someone</h3>
+    <form id="add-form" class="row">
+      <input type="text" id="add-username" placeholder="Username" maxlength="32" autocapitalize="none" required aria-label="Username">
+      <input type="text" id="add-display" placeholder="Name shown (optional)" maxlength="40" aria-label="Name shown">
+      <select id="add-role" aria-label="Role"><option value="player">Player</option><option value="gm">GM (sees everything)</option></select>
+      <input type="text" id="add-password" placeholder="Password (blank = make one)" maxlength="200" autocomplete="off" aria-label="Password">
+      <button type="submit">Add</button>
+    </form>
+    <p class="muted" style="margin-bottom:0;">They'll be asked to choose their own password the first time they sign in.</p>
+  </div>
+
+  <div class="card" id="games-panel" hidden></div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ asset('accounts.js') }}"></script>
+<script>initUsersPage();</script>
+{% endblock %}

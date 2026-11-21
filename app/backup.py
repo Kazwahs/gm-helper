@@ -61,6 +61,9 @@ def _strip_rebuildable_and_secret_data(conn):
     )
     marks = ",".join("?" * len(SECRET_SETTINGS))
     conn.execute(f"DELETE FROM settings WHERE key IN ({marks})", SECRET_SETTINGS)
+    # Sign-in sessions are live credentials: they never belong in a backup file
+    # (accounts themselves do, so a restore keeps your players).
+    conn.execute("DELETE FROM sessions")
     conn.commit()
     conn.execute("VACUUM")
 

@@ -4,6 +4,7 @@ import json
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from .. import access, accounts
 from .. import campaigns as campaigns_module
 from .. import handouts as handouts_module
 from .. import live as live_module
@@ -65,6 +66,12 @@ def api_save_map(game_key: str = Form(...), map_type: str = Form(...), genre: st
     return JSONResponse({"id": map_id})
 
 
+def _viewer_id(request):
+    """The signed-in player looking at a player view (None for the GM or when accounts are off)."""
+    user = access.current_user(request)
+    return user["id"] if user and user["role"] == "player" else None
+
+
 def _standalone_ctx(request, m):
     """Context for the nav-less pages (player view, print) - just theme + map."""
     ctx = base_ctx(request)
@@ -80,9 +87,13 @@ def map_player_page(request: Request, map_id: int):
     m = maps_store.get_map(map_id)
     if not m:
         raise HTTPException(status_code=404, detail="Unknown map.")
+    viewer = _viewer_id(request)
+    if viewer:                          # a signed-in player never receives the GM's secret-door markers
+        m = dict(m, svg=live_module.strip_gm_only(m["svg"]))
     ctx = _standalone_ctx(request, m)
     ctx["reveal"] = maps_store.get_reveal(map_id)
-    ctx["live"] = live_module.live_state(map_id)
+    ctx["live"] = live_module.live_state(map_id, viewer_id=viewer)
+    ctx["can_move"] = bool(viewer)
     return templates.TemplateResponse(request, "map_player.html", ctx)
 
 
@@ -156,6 +167,8 @@ def map_detail_page(request: Request, map_id: int):
         "key_supported": m["map_type"] in room_keys.KEY_MAP_TYPES,
         "vtt_supported": vtt_export.supported(m["map_type"]),
         "key_tables": random_tables.list_tables(m["game_key"]),
+        # players of the attached campaign, so a token can be handed to one of them
+        "token_players": accounts.members(m["campaign_id"]) if m.get("campaign_id") else [],
     })
     return templates.TemplateResponse(request, "map_detail.html", ctx)
 

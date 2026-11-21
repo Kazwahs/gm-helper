@@ -1,0 +1,23 @@
+{% extends "base_bare.html" %}
+{% block title %}Sign in - GM Helper{% endblock %}
+{% block body %}
+<main class="login-wrap">
+  <form class="card login-card" method="post" action="/login">
+    <h1 class="login-title">GM Helper</h1>
+    <p class="muted" style="margin-top:0;">Sign in to continue.</p>
+    {% if error %}<p class="login-error" role="alert">{{ error }}</p>{% endif %}
+    <input type="hidden" name="next" value="{{ next }}">
+    <div class="field-group">
+      <label class="field-label" for="login-username">Username</label>
+      <input type="text" id="login-username" name="username" value="{{ username }}" autocomplete="username"
+             autocapitalize="none" spellcheck="false" maxlength="40" required autofocus>
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="login-password">Password</label>
+      <input type="password" id="login-password" name="password" autocomplete="current-password" maxlength="200" required>
+    </div>
+    <button type="submit" style="width:100%;">Sign in</button>
+    <p class="muted" style="margin-bottom:0;">Forgot your password? Ask your GM to reset it.</p>
+  </form>
+</main>
+{% endblock %}

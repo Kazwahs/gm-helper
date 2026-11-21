@@ -1,8 +1,8 @@
 """Live table state for a map: the player view's poll, tokens, and handouts."""
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, Response
 
-from .. import database, handouts, live, map_tokens, maps_store, token_combat
+from .. import access, database, handouts, live, map_tokens, maps_store, token_combat
 from ..tools import initiative as initiative_tool
 
 router = APIRouter()
@@ -22,8 +22,9 @@ def _call(fn, *args, **kwargs):
 
 
 @router.get("/api/maps/{map_id}/live")
-def api_live(map_id: int):
-    state = live.live_state(map_id)
+def api_live(request: Request, map_id: int):
+    user = access.current_user(request)
+    state = live.live_state(map_id, viewer_id=user["id"] if user and user["role"] == "player" else None)
     if state is None:
         return _fail("Unknown map.", 404)
     return JSONResponse(state, headers={"Cache-Control": "no-store"})

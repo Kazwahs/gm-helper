@@ -146,6 +146,98 @@ Basic auth sends the password with every request, so use it on a trusted
 network or behind HTTPS (for example a reverse proxy) - it keeps casual
 visitors on your LAN out, it isn't a substitute for HTTPS on the open internet.
 
+Want separate sign-ins for you and your players instead? See **Accounts: GM and
+players** below; this shared password is then no longer used.
+
+## Accounts: GM and players
+
+Accounts are **off until you create the first one**, so nothing changes for a
+solo GM. When you want players to sign in:
+
+1. Open **More -> Users**, choose a username and password, and click **Create GM
+   account and turn on accounts**. You're signed in straight away.
+2. On the same page, **Add someone**. Leave the password blank and GM Helper makes
+   a temporary one (like `9ztr-cpy6-xss9`) and shows it **once** - pass it on. The
+   player is made to choose their own password the first time they sign in.
+3. On a campaign's page, use the **Players** card to add them to that campaign.
+   Only players in a campaign can see it.
+4. On a map, give a token to a player (the **Player** drop-down next to each token)
+   so they can drag it.
+
+What a **player** can do - and nothing else:
+
+- see the campaigns they were added to: the premise and tone, **what the party has
+  learned** (secrets you've marked as revealed), the summaries of sessions you've
+  marked *played*, and the maps attached to the campaign;
+- open the **live map** of those campaigns, which updates as you reveal it, and drag
+  **their own token** (only the ones you gave them, never a hidden one);
+- keep **private notes** per campaign. You can read them on the campaign page;
+  other players can't;
+- read a game's **library** only if you tick **Library** for that player and game
+  (Users -> Games & library). It is off by default, because it is your copy of the
+  books - check your licences first. Adding a player to a campaign switches that
+  game on for them but never the library.
+
+A **GM** account sees everything and can open the player pages too (as a preview).
+Players who try a GM page are sent back to their own page, and the same goes for the
+data behind it: every route is classified GM-only unless it is on a short list that
+`tests/test_access.py` pins down, so a new page you add later is closed to players
+until you decide otherwise.
+
+**What the player pages never contain:** NPC secrets, locations, plot threads,
+factions, clocks, unrevealed secrets, sessions you haven't played, session prep, your
+AI settings, backups, or other players' notes and tokens.
+
+**Staying safe on the internet.** Passwords are stored with scrypt, sessions are
+random server-side tokens (14 days, extended while in use; ended by Sign out, by
+disabling the account, and - on your other devices - by changing the password), the cookie is HttpOnly and
+SameSite, and requests from another website are refused. Wrong passwords are
+throttled: five wrong tries for one name from one address, or ten from one address,
+lock sign-in for 15 minutes (the counters are in memory and reset on restart). If you
+publish GM Helper outside your home network, put it behind an HTTPS reverse proxy
+(Nginx Proxy Manager, Caddy, a Cloudflare Tunnel...) and tell it so with these
+environment variables (in your `.env` for Docker):
+
+| Variable | Set it to | Why |
+|---|---|---|
+| `GM_HELPER_TRUST_PROXY` | `1` | Use the address the proxy forwards (`X-Forwarded-For`) for the sign-in limits. **Without it, everyone arriving through the proxy looks like one address, so a single attacker can lock all of you out.** Only set it when the proxy is the only way in, because anyone who can reach the app directly can forge that header. |
+| `GM_HELPER_SECURE_COOKIES` | `1` | Always mark the cookie Secure. (It is also done automatically when the proxy sends `X-Forwarded-Proto: https`.) |
+| `GM_HELPER_TRUSTED_ORIGINS` | `https://gm.example.com` | Only needed if your proxy doesn't pass the original `Host` header on; lists the public address(es) that may post forms. Comma-separated. |
+
+Plain HTTP on your home network works with none of these set. Don't expose the app
+to the internet over plain HTTP: passwords and sessions would cross it unprotected.
+
+**Locked out?** The command line can always get you back in. In Docker (swap
+`gm-helper` for your container's name - `docker ps` shows it):
+
+```powershell
+docker exec -it gm-helper python -m app.accounts list
+docker exec -it gm-helper python -m app.accounts reset-password zak
+docker exec -it gm-helper python -m app.accounts create-gm newname
+```
+
+(Running it directly on your PC: `py -m app.accounts list`, and so on, from the
+project folder.) `reset-password` prints a temporary password and makes the account
+choose a new one at its next sign-in.
+
+**Backups and accounts.** Backups keep the accounts (so a restore doesn't lose your
+players) but never the live sign-in sessions, so after restoring everyone signs in
+again.
+
+**Honest limits of this version:**
+
+- There is **one kind of GM**; there's no co-GM who can run just one campaign.
+- No e-mail, "forgot password" link or single sign-on: you reset passwords for
+  people yourself.
+- A player's token is a token on the map, not a character sheet; there are no
+  player-owned characters, and NPCs and locations can't be shared with players
+  (yet).
+- The player map is the same picture the GM sees, with the secret-door markers and
+  hidden tokens removed. **Fog of war is cosmetic**: a player who knows how to look
+  at the page source can see the unrevealed parts of the map. That is fine for a
+  table of friends but not a way to keep a map truly secret.
+- The shared `GM_HELPER_PASSWORD` stops being used once the first account exists.
+
 ## Running in Docker (planned deployment path)
 
 ```bash
@@ -603,10 +695,14 @@ app/
   web.py               shared templates + page context
   routers/             one module per area: dashboard, settings, games, library,
                          bookmarks, campaigns, campaign_world, maps, live, screen, tools,
-                         tables, ops
+                         tables, ops, accounts (sign-in, Users page), play (player pages)
   config.py            static paths / defaults
   database.py          SQLite schema + helpers
-  security.py          optional password (HTTP Basic) middleware
+  security.py          optional shared password (HTTP Basic), used only while there are no accounts
+  accounts.py          users, scrypt passwords, sessions, campaign membership, game/library access,
+                         player notes, sign-in throttle, and the recovery command line
+  access.py            who may open what: the route policy table + the middleware that enforces it
+  play.py              the player-safe recap of a campaign (what a player may read)
   backup.py            "my data" / full database snapshots
   gm_screen.py         GM Screen cards, per-system defaults, pins, notes
   recent.py            "pick up where you left off" (recent campaigns/maps/sessions)
@@ -705,7 +801,10 @@ logic, the campaign planner and its exports, bookmarks, the saved-maps store
 the Library, quick jump, the session log, saved encounters, stat-block
 extraction, map tokens and handouts, backups and the automatic backup schedule, room keys,
 the VTT export, linked maps, tokens linked to the initiative tracker, campaign secrets, clocks and
-ties, the fight builder, the optional password, the database schema/migration
+ties, the fight builder, the optional password, user accounts (passwords, sessions,
+lockout, campaign membership, library grants), the access rules (every route has a
+deliberate GM/player/open policy; players are refused GM pages and other campaigns'
+data; the player pages contain no GM-only text), the database schema/migration
 logic, and the games.json series-to-game mapping. Every page has a smoke test
 that checks it still renders.
 
@@ -747,9 +846,10 @@ build.
   under a second with them off. So the **Print** page leaves them out by default
   (crisp pen lines, flat floors) and has a **Pen & paper effects** checkbox to
   put them back for a page or two.
-- Handout images are served by the app and are only protected by the optional
-  app password - anyone on your network who has the link (and the password,
-  if set) can open them. Tokens and handouts reach the player view by
+- Handout images are served by the app. With accounts on, only a signed-in player
+  in the campaign can open the one being shown; with accounts off they are only
+  protected by the optional app password - anyone on your network who has the link
+  (and the password, if set) can open them. Tokens and handouts reach the player view by
   polling every couple of seconds, not instantly.
 - "Ask the Library" is only as good as the model you connect and the text
   that was extracted; always check the cited pages for rules you'll rely on.

@@ -264,6 +264,22 @@
   </form>
 </div>
 
+<!-- --------------------------------------------------------- Players -->
+<div class="card" id="players-card">
+  <h3>Players</h3>
+  <p class="muted">
+    Players with an account see only this campaign's live maps, the clues the party has found, the sessions
+    you've played, and their own notes. Everything else on this page stays yours.
+    <a href="/play/campaigns/{{ campaign.id }}">Preview what they see</a>.
+  </p>
+  <div id="players-body"><p class="muted" style="margin:0;">Loading&hellip;</p></div>
+  <details id="player-notes" hidden style="margin-top:0.75rem;">
+    <summary>Players' notes</summary>
+    <div id="player-notes-body" style="margin-top:0.5rem;"></div>
+  </details>
+  <p class="muted" id="players-msg" role="status" style="margin:0.4rem 0 0;"></p>
+</div>
+
 <!-- ------------------------------------------------------------ Ties -->
 <div class="card" id="ties-card">
   <h3>Ties</h3>
@@ -444,8 +460,10 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ asset('campaign_world.js') }}"></script>
+<script src="{{ asset('accounts.js') }}"></script>
 <script>
 const campaignId = {{ campaign.id }};
+initPlayersCard(campaignId);
 
 function wireAutoSave(container, urlFor) {
   container.querySelectorAll('[data-field]').forEach(field => {

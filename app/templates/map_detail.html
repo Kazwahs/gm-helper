@@ -647,6 +647,7 @@ refreshRevealUI();
 
 // ------------------------------------------------------------ tokens
 let tokens = {{ tokens | tojson }};
+const tokenPlayers = {{ token_players | tojson }};   // players of the attached campaign
 const tokenRadius = {{ token_radius | tojson }};
 const tokenList = document.getElementById('token-list');
 const tokenHint = document.getElementById('token-hint');
@@ -694,6 +695,21 @@ function renderTokenList() {
       if (await tokenCall(`/api/map-tokens/${t.id}/delete`, {})) { tokens = tokens.filter((x) => x.id !== t.id); redrawTokens(); }
     });
     const row = [color, label, size, hide];
+    if (tokenPlayers.length) {
+      // hand the token to a player so they can drag it on their own screen
+      const owner = el('select', {class: 'token-owner', 'aria-label': 'Player who can move this token'},
+        [el('option', {value: ''}, 'No player'),
+         ...tokenPlayers.map((p) => {
+           const o = el('option', {value: String(p.id)}, p.display_name);
+           if (t.user_id === p.id) o.selected = true;
+           return o;
+         })]);
+      owner.addEventListener('change', async () => {
+        const res = await tokenCall(`/api/map-tokens/${t.id}/update`, {field: 'user_id', value: owner.value});
+        if (res) { Object.assign(t, res.token); sayToken(''); } else renderTokenList();
+      });
+      row.push(owner);
+    }
     if (combatants.length || t.combatant_id) {
       const link = el('select', {'aria-label': 'Initiative combatant for this token'},
         [el('option', {value: ''}, t.orphan ? 'Left the tracker' : 'Not in the tracker'),

@@ -152,7 +152,8 @@ def test_show_refuses_other_games_and_unknowns(map_id):
 def test_token_lifecycle_and_normalising(map_id):
     tid = map_tokens.add_token(map_id, "  Aria  ", "100.46", 50, "#AABBCC", 2)
     t = map_tokens.get_token(tid)
-    assert t == {"id": tid, "label": "Aria", "x": 100.5, "y": 50.0, "color": "#aabbcc", "size": 2, "hidden": False}
+    assert t == {"id": tid, "label": "Aria", "x": 100.5, "y": 50.0, "color": "#aabbcc", "size": 2, "hidden": False,
+                 "user_id": None}
     map_tokens.move_token(tid, 200, 300)
     map_tokens.update_token(tid, "label", "Aria the Bold")
     map_tokens.update_token(tid, "color", "#112233")

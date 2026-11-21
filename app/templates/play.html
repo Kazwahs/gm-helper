@@ -1,0 +1,25 @@
+{% extends "base_play.html" %}
+{% block title %}My campaigns - GM Helper{% endblock %}
+{% block content %}
+<h1>My campaigns</h1>
+{% if campaigns %}
+  <div class="grid">
+    {% for c in campaigns %}
+      <a class="game-tile" href="/play/campaigns/{{ c.id }}">
+        <strong>{{ c.title }}</strong>
+        <div class="count">{{ c.game_name }}</div>
+        <span class="system-tag">{{ c.status }}</span>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="card"><p style="margin:0;">You haven't been added to a campaign yet. Ask your GM to add you.</p></div>
+{% endif %}
+{% if libraries %}
+  <h2>Library</h2>
+  <p class="muted">Rule books your GM has opened up to you.</p>
+  <div class="row">
+    {% for g in libraries %}<a class="button-link" href="/play/library?game={{ g.key | urlencode }}">{{ g.name }}</a>{% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

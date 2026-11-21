@@ -1,0 +1,47 @@
+{% extends layout %}
+{% block title %}Account - GM Helper{% endblock %}
+{% block content %}
+<h1>Your account</h1>
+<div class="card">
+  <p style="margin-top:0;">Signed in as <strong>{{ me.display_name }}</strong>
+    <span class="muted">({{ me.username }}) &middot; {{ "GM" if me.role == "gm" else "Player" }}</span></p>
+  {% if me.must_change %}
+    <p class="login-error" role="alert">You're using a temporary password. Choose your own below to carry on.</p>
+  {% endif %}
+</div>
+<div class="card">
+  <h3 style="margin-top:0;">Change password</h3>
+  <form id="pw-form" class="stack" style="max-width:24rem;">
+    <div class="field-group">
+      <label class="field-label" for="pw-current">Current password</label>
+      <input type="password" id="pw-current" autocomplete="current-password" maxlength="200" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="pw-new">New password (at least 10 characters)</label>
+      <input type="password" id="pw-new" autocomplete="new-password" maxlength="200" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="field-group">
+      <label class="field-label" for="pw-confirm">New password again</label>
+      <input type="password" id="pw-confirm" autocomplete="new-password" maxlength="200" required style="width:100%; box-sizing:border-box;">
+    </div>
+    <div class="row"><button type="submit">Change password</button></div>
+    <p class="muted" id="pw-msg" role="status" style="margin:0;"></p>
+  </form>
+  <p class="muted" style="margin-bottom:0;">Changing it signs you out everywhere else.</p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById('pw-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('pw-msg');
+  const next = document.getElementById('pw-new').value;
+  if (next !== document.getElementById('pw-confirm').value) { msg.textContent = "The two new passwords don't match."; return; }
+  try {
+    const res = await postForm('/api/account/password', {current: document.getElementById('pw-current').value, new: next});
+    msg.textContent = 'Password changed.';
+    window.location.href = res.next || '/';
+  } catch (err) { msg.textContent = err.message; }
+});
+</script>
+{% endblock %}

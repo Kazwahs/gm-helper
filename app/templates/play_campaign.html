@@ -1,0 +1,90 @@
+{% extends layout %}
+{% block title %}{{ recap.title }} - GM Helper{% endblock %}
+{% block content %}
+{% if not is_player %}
+  <div class="card" style="border-color: var(--accent);"><strong>Player preview.</strong>
+    <span class="muted">This is everything your players can see about this campaign.</span>
+    <a href="/campaigns/{{ recap.id }}">Back to the campaign</a></div>
+{% endif %}
+<h1 style="margin-bottom:0.2rem;">{{ recap.title }}</h1>
+<p class="muted" style="margin-top:0;">{{ recap.game_name }}</p>
+
+{% if recap.pitch or recap.tone %}
+<div class="card">
+  {% if recap.pitch %}<h3 style="margin-top:0;">Premise</h3><p class="pre-wrap">{{ recap.pitch }}</p>{% endif %}
+  {% if recap.tone %}<h3>Tone</h3><p class="pre-wrap" style="margin-bottom:0;">{{ recap.tone }}</p>{% endif %}
+</div>
+{% endif %}
+
+{% if recap.maps %}
+<div class="card">
+  <h3 style="margin-top:0;">Maps</h3>
+  <p class="muted">Opens the live map. It updates by itself as your GM reveals the dungeon{% if is_player %}, and you can drag your own token{% endif %}.</p>
+  <div class="row">
+    {% for m in recap.maps %}<a class="button-link" href="/maps/{{ m.id }}/player">{{ m.title }}</a>{% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <h3 style="margin-top:0;">What the party has learned</h3>
+  {% if recap.learned %}
+    <ul class="learned-list">{% for text in recap.learned %}<li class="pre-wrap">{{ text }}</li>{% endfor %}</ul>
+  {% else %}
+    <p class="muted" style="margin:0;">Nothing yet. Clues will appear here when your GM reveals them.</p>
+  {% endif %}
+</div>
+
+{% if recap.sessions %}
+<div class="card">
+  <h3 style="margin-top:0;">Previously&hellip;</h3>
+  {% for s in recap.sessions %}
+    <h4 style="margin-bottom:0.2rem;">Session {{ s.number }}{% if s.title %}: {{ s.title }}{% endif %}
+      {% if s.date %}<span class="muted"> &middot; {{ s.date }}</span>{% endif %}</h4>
+    {% if s.summary %}<p class="pre-wrap" style="margin-top:0;">{{ s.summary }}</p>{% else %}<p class="muted" style="margin-top:0;">No write-up yet.</p>{% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if is_player %}
+<div class="card" id="notes-card" data-campaign="{{ recap.id }}">
+  <h3 style="margin-top:0;">My notes</h3>
+  <p class="muted">Private to you (and your GM). Saved automatically.</p>
+  <textarea id="notes-area" class="notes-area" maxlength="{{ max_note }}" aria-label="My notes">{{ note.body }}</textarea>
+  <div class="row" style="margin-top:0.5rem;">
+    <button type="button" id="notes-save" class="secondary">Save now</button>
+    <span class="muted" id="notes-msg" role="status">{% if note.updated_at %}Last saved {{ note.updated_at }} UTC{% endif %}</span>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if is_player %}
+<script>
+(function () {
+  const area = document.getElementById('notes-area');
+  const msg = document.getElementById('notes-msg');
+  const id = document.getElementById('notes-card').dataset.campaign;
+  let timer = null, saved = area.value, saving = false;
+  async function save() {
+    clearTimeout(timer);
+    if (area.value === saved || saving) return;
+    const body = area.value;
+    saving = true; msg.textContent = 'Saving...';
+    try {
+      await postForm(`/api/play/campaigns/${id}/notes`, {body});
+      saved = body; msg.textContent = 'Saved.';
+    } catch (err) { msg.textContent = err.message; }
+    saving = false;
+    if (area.value !== saved) timer = setTimeout(save, 1500);
+  }
+  area.addEventListener('input', () => { msg.textContent = 'Unsaved changes...'; clearTimeout(timer); timer = setTimeout(save, 1500); });
+  area.addEventListener('blur', save);
+  document.getElementById('notes-save').addEventListener('click', save);
+  window.addEventListener('beforeunload', () => {
+    if (area.value !== saved) navigator.sendBeacon(`/api/play/campaigns/${id}/notes`, new URLSearchParams({body: area.value}));
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

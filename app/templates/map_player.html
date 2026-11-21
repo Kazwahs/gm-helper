@@ -13,6 +13,7 @@
 <div class="player-bar">
   <span class="player-title">{{ map.title }}</span>
   <span id="player-status" class="muted" role="status"></span>
+  {% if can_move %}<a class="button-link" href="/play">My campaigns</a>{% endif %}
   <button type="button" id="fullscreen-btn" class="secondary">Full screen</button>
 </div>
 {% endblock %}
@@ -57,10 +58,86 @@ function closeHandout() {
 document.getElementById('handout-close').addEventListener('click', closeHandout);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !handoutBox.hidden) closeHandout(); });
 
+// A signed-in player can drag the tokens the GM handed to them (state.tokens[].mine).
+const canMove = {{ can_move | tojson }};
+let lastTokens = [];
+let dragging = null;
+
+function toSvgPoint(evt) {
+  const pt = svg.createSVGPoint();
+  pt.x = evt.clientX; pt.y = evt.clientY;
+  const m = svg.getScreenCTM();
+  if (!m) return null;
+  const p = pt.matrixTransform(m.inverse());
+  return {x: p.x, y: p.y};
+}
+
+function markMine(tokens) {
+  if (!canMove) return;
+  const mine = new Set((tokens || []).filter((t) => t.mine).map((t) => String(t.id)));
+  svg.querySelectorAll('.token').forEach((node) => {
+    if (!mine.has(node.dataset.id)) return;
+    node.classList.add('token-mine');
+    node.style.cursor = 'grab';
+    node.style.touchAction = 'none';
+    const disc = node.querySelector('circle:not(.token-turn-ring)');
+    if (disc) disc.setAttribute('stroke', '#4fc3f7');   // a blue rim marks the token that's yours
+  });
+}
+
+function clampToMap(p) {
+  const vb = svg.viewBox && svg.viewBox.baseVal;
+  if (!vb || !vb.width || !vb.height) return p;
+  return {x: Math.min(vb.x + vb.width, Math.max(vb.x, p.x)), y: Math.min(vb.y + vb.height, Math.max(vb.y, p.y))};
+}
+
+svg.addEventListener('pointerdown', (e) => {
+  if (!canMove || e.button > 0 || dragging) return;
+  const node = e.target.closest('.token-mine');
+  if (!node) return;
+  const t = lastTokens.find((x) => String(x.id) === node.dataset.id);
+  const start = toSvgPoint(e);
+  if (!t || !start) return;
+  e.preventDefault();
+  node.setPointerCapture(e.pointerId);
+  node.style.cursor = 'grabbing';
+  dragging = {t, node, id: e.pointerId, dx: t.x - start.x, dy: t.y - start.y, x: t.x, y: t.y, moved: false};
+});
+svg.addEventListener('pointermove', (e) => {
+  if (!dragging || e.pointerId !== dragging.id) return;
+  const pt = toSvgPoint(e);
+  if (!pt) return;
+  const p = clampToMap({x: pt.x + dragging.dx, y: pt.y + dragging.dy});
+  dragging.x = Math.round(p.x * 10) / 10;
+  dragging.y = Math.round(p.y * 10) / 10;
+  dragging.moved = true;
+  dragging.node.setAttribute('transform', `translate(${dragging.x},${dragging.y})`);
+});
+async function endDrag(e, cancelled) {
+  if (!dragging || e.pointerId !== dragging.id) return;
+  const {t, node, x, y, moved} = dragging;
+  dragging = null;
+  node.style.cursor = 'grab';
+  if (cancelled || !moved) { if (moved) lastVersion = null; return; }
+  try {
+    await postForm(`/api/map-tokens/${t.id}/move`, {x, y});
+    t.x = x; t.y = y;
+    statusEl.textContent = '';
+  } catch (err) {
+    statusEl.textContent = err.message;
+  }
+  lastVersion = null;          // redraw from the server's copy on the next poll
+}
+svg.addEventListener('pointerup', (e) => endDrag(e, false));
+svg.addEventListener('pointercancel', (e) => endDrag(e, true));
+
 function show(state) {
   if (state.v === lastVersion) return;
+  if (dragging) return;            // don't redraw under the player's finger
   lastVersion = state.v;
+  lastTokens = state.tokens || [];
   drawTokens(svg, state.tokens, state.token_radius);
+  markMine(state.tokens);
   applyFog(svg, state.reveal, 1);
   showHandout(state.handout);
   document.getElementById('player-stage').style.visibility = 'visible';
@@ -73,6 +150,7 @@ show({{ live | tojson }});
 async function poll() {
   try {
     const res = await fetch(`/api/maps/${mapId}/live`, {cache: 'no-store'});
+    if (res.status === 401) { window.location.href = '/login?next=' + encodeURIComponent(window.location.pathname); return; }
     if (!res.ok) throw new Error('bad response');
     show(await res.json());
     statusEl.textContent = '';

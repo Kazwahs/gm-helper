@@ -422,6 +422,62 @@ CREATE TABLE IF NOT EXISTS gm_screen_notes (
     game_key TEXT PRIMARY KEY,
     body     TEXT
 );
+
+-- User accounts (see accounts.py). With no rows here the app runs exactly as it
+-- always has (open, or one shared password). Once the GM creates the first
+-- account, everyone signs in: role 'gm' sees everything, 'player' sees only the
+-- campaigns they were added to and the games the GM switched on for them.
+CREATE TABLE IF NOT EXISTS users (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    username     TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    display_name TEXT NOT NULL DEFAULT '',
+    role         TEXT NOT NULL DEFAULT 'player',   -- gm / player
+    pw_hash      TEXT NOT NULL,
+    must_change  INTEGER NOT NULL DEFAULT 0,       -- 1 = a temporary password: change it at next sign-in
+    disabled     INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT DEFAULT (datetime('now')),
+    last_login   TEXT
+);
+
+-- Server-side sessions: the browser holds a random token, we keep only its hash,
+-- so a stolen database can't be replayed and a sign-out / disable really ends it.
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    last_seen  TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Which players belong to which campaign. role is 'player' for now (the column
+-- is there so a co-GM role can be added later without another migration).
+CREATE TABLE IF NOT EXISTS campaign_members (
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role        TEXT NOT NULL DEFAULT 'player',
+    added_at    TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (campaign_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_members_user ON campaign_members(user_id);
+
+-- Games a player may see, and whether they may use that game's library (the
+-- GM's own books). Library access is off unless the GM switches it on.
+CREATE TABLE IF NOT EXISTS user_game_access (
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    game_key TEXT NOT NULL,
+    library  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, game_key)
+);
+
+-- One private notebook per player per campaign (the GM can read them all).
+CREATE TABLE IF NOT EXISTS player_notes (
+    campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body        TEXT NOT NULL DEFAULT '',
+    updated_at  TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (campaign_id, user_id)
+);
 """
 
 
@@ -488,6 +544,8 @@ def init_db():
     # The name is kept too, so a token never follows a *different* combatant after a tracker reset.
     _ensure_column("map_tokens", "combatant_id", "INTEGER")
     _ensure_column("map_tokens", "combatant_name", "TEXT")
+    # The player (a user account) who may move this token on the player view.
+    _ensure_column("map_tokens", "user_id", "INTEGER REFERENCES users(id) ON DELETE SET NULL")
     # A GM Screen card can be a pinned book page (opens the PDF at that page).
     _ensure_column("gm_screen_cards", "book_id", "INTEGER")
     _ensure_column("gm_screen_cards", "page_number", "INTEGER")

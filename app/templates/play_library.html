@@ -1,0 +1,61 @@
+{% extends layout %}
+{% block title %}Library - GM Helper{% endblock %}
+{% block content %}
+<h1>Library</h1>
+{% if not choices %}
+  <div class="card"><p style="margin:0;">Your GM hasn't opened any libraries to you.</p></div>
+{% else %}
+  <div class="row" style="margin-bottom:0.75rem;">
+    {% for g in choices %}
+      <a class="button-link" href="/play/library?game={{ g.key | urlencode }}"{% if g.key == game_key %} aria-current="page" style="border-color: var(--accent); color: var(--accent);"{% endif %}>{{ g.name }}</a>
+    {% endfor %}
+  </div>
+  {% if game_key %}
+    <h2 style="margin-top:0;">{{ game_name }}</h2>
+    <form method="get" action="/play/library" class="row" style="margin-bottom:1rem;">
+      <input type="hidden" name="game" value="{{ game_key }}">
+      <input type="text" name="q" value="{{ query }}" placeholder="Search these books" aria-label="Search these books" maxlength="200" style="min-width:260px;">
+      <button type="submit">Search</button>
+    </form>
+    {% if query %}
+      {% if not found.total %}
+        <p class="muted">No matches for "{{ query }}".</p>
+      {% else %}
+        <p class="muted">{{ found.total }} matching page{{ "" if found.total == 1 else "s" }}{% if found.pages > 1 %} &middot; page {{ found.page }} of {{ found.pages }}{% endif %}</p>
+      {% endif %}
+      {% for g in groups %}
+        <div class="card">
+          <strong>{{ g.title }}</strong> <span class="muted">- {{ g.publisher }} / {{ g.series }}</span>
+          {% for r in g.hits %}
+            <div class="hit">
+              <a href="/books/{{ r.book_id }}/file#page={{ r.page_number }}" target="_blank" rel="noopener">Page {{ r.page_number }}</a>
+              <div class="result-box">{{ r.snippet | safe }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+      {% if found and found.pages > 1 %}
+        <div class="row pager">
+          {% set base = "/play/library?game=" ~ (game_key | urlencode) ~ "&q=" ~ (query | urlencode) %}
+          {% if found.page > 1 %}<a class="button-link" href="{{ base }}&amp;page={{ found.page - 1 }}">&larr; Previous</a>{% endif %}
+          <span class="muted">Page {{ found.page }} of {{ found.pages }}</span>
+          {% if found.page < found.pages %}<a class="button-link" href="{{ base }}&amp;page={{ found.page + 1 }}">Next &rarr;</a>{% endif %}
+        </div>
+      {% endif %}
+    {% endif %}
+    <h3>All books</h3>
+    <div class="card" style="padding:0.5rem 1rem;">
+      {% for b in books %}
+        <div class="row" style="justify-content:space-between; border-bottom:1px dotted var(--border); padding:0.3rem 0;">
+          <span>{{ b.title }} <span class="muted">{{ b.series }}</span></span>
+          <a href="/books/{{ b.id }}/file" target="_blank" rel="noopener">Open</a>
+        </div>
+      {% else %}
+        <p class="muted">No books in this game's library yet.</p>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">Pick a game above.</p>
+  {% endif %}
+{% endif %}
+{% endblock %}

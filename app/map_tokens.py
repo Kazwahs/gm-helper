@@ -8,7 +8,7 @@ so the player page, polling /api/maps/{id}/live, redraws within a couple of seco
 import math
 import re
 
-from . import database
+from . import accounts, database
 
 MAX_TOKENS = 60
 MAX_LABEL = 24
@@ -67,7 +67,7 @@ def _bump(cur, map_id):
 
 def _row(r):
     return {"id": r["id"], "label": r["label"], "x": r["x"], "y": r["y"], "color": r["color"],
-            "size": r["size"], "hidden": bool(r["hidden"])}
+            "size": r["size"], "hidden": bool(r["hidden"]), "user_id": r["user_id"]}
 
 
 def list_tokens(map_id, include_hidden=True):
@@ -114,12 +114,36 @@ def _owner(token_id):
     return r
 
 
+def _player_for(map_id, value):
+    """The user id a token is being handed to: blank for nobody, otherwise a player
+    who belongs to the campaign this map is attached to."""
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        user_id = int(text)
+    except ValueError:
+        raise ValueError("Pick one of the campaign's players.")
+    with database.get_cursor() as cur:
+        row = cur.execute("SELECT campaign_id FROM maps WHERE id = ?", (map_id,)).fetchone()
+    if not row or not row["campaign_id"]:
+        raise ValueError("Attach this map to a campaign first, then pick one of its players.")
+    if not accounts.is_member(user_id, row["campaign_id"]):
+        raise ValueError("Pick one of the campaign's players.")
+    return user_id
+
+
 def update_token(token_id, field, value):
     cleaners = {"label": _label, "color": _color, "size": _size, "hidden": _flag}
-    if field not in cleaners:
+    token = None
+    if field == "user_id":
+        token = _owner(token_id)
+        value = _player_for(token["map_id"], value)
+    elif field not in cleaners:
         raise ValueError("That can't be changed.")
-    value = cleaners[field](value)
-    token = _owner(token_id)
+    else:
+        value = cleaners[field](value)
+    token = token or _owner(token_id)
     with database.get_cursor(commit=True) as cur:
         cur.execute(f"UPDATE map_tokens SET {field} = ? WHERE id = ?", (value, token_id))
         _bump(cur, token["map_id"])
